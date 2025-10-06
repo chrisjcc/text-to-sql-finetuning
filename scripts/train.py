@@ -1,16 +1,22 @@
 """
-Script to fine-tune a language model for text-to-SQL generation.
+Training script for Text-to-SQL fine-tuning using Hydra hierarchical configs.
 
 Usage:
     python scripts/train.py
-    python scripts/train.py --no-resume  # Start fresh without resuming
+    python scripts/train.py training.num_train_epochs=5  # override parameters from CLI
 """
 
 import sys
-import argparse
 from pathlib import Path
+import os
+import hydra
+from omegaconf import DictConfig
+from dotenv import load_dotenv
 
-# Add src to path
+from pathlib import Path
+from hydra.utils import get_original_cwd
+
+# Add src directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data_preparation import DatasetProcessor
@@ -23,134 +29,94 @@ from src.utils import (
     print_trainable_parameters,
     validate_file_exists,
 )
-from config.config import Config
+
+# Load environment variables from .env before Hydra sees them
+load_dotenv()
 
 
-def setup_wandb(config):
-    """Setup Weights & Biases tracking if enabled."""
-    if config.wandb.enabled:
-        try:
-            import wandb
-            wandb.login(key=config.wandb.api_key)
-            wandb.init(project=config.wandb.project)
-            print(f"✓ Weights & Biases tracking enabled (project: {config.wandb.project})")
-        except ImportError:
-            print("⚠ wandb not installed. Install with: pip install wandb")
-        except Exception as e:
-            print(f"⚠ Failed to setup WandB: {e}")
-    else:
-        print("WandB tracking disabled (no API key found)")
-
-
-def main():
-    """Main training function."""
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="Train text-to-SQL model")
-    parser.add_argument(
-        "--no-resume",
-        action="store_true",
-        help="Start fresh without resuming from checkpoint"
-    )
-    parser.add_argument(
-        "--no-flash-attention",
-        action="store_true",
-        help="Disable Flash Attention 2 (use SDPA instead)"
-    )
-    args = parser.parse_args()
-
+@hydra.main(version_base=None, config_path="../config", config_name="config")
+def main(cfg: DictConfig):
+    """Main training function using hierarchical Hydra configs."""
     # Setup logging
-    setup_logging(log_file=Path("logs/training.log"))
+    log_file = Path(get_original_cwd()) / "logs" / "training.log"
+    setup_logging(log_file=log_file)
 
-    # Load configuration
-    config = Config.load()
-
-    # Authenticate with Hugging Face
-    authenticate_huggingface(config.hf.token)
-
-    # Setup WandB if configured
-    setup_wandb(config)
+    # Authenticate with Hugging Face using token
+    if cfg.hf.token:
+        authenticate_huggingface(cfg.hf.token)
 
     # Check GPU availability
     check_gpu_availability()
 
-    # Validate training dataset exists
-    validate_file_exists(config.dataset.train_path, "Training dataset")
+    # Resolve and validate training dataset path
+    train_path = Path(cfg.dataset.train_dataset_path).resolve()
+    validate_file_exists(train_path, "Training dataset")
 
-    # Load training dataset
-    print("\n" + "="*80)
-    print("Loading training dataset...")
-    print("="*80)
-    processor = DatasetProcessor(config.dataset.name)
-    train_dataset = processor.load_prepared_dataset(config.dataset.train_path)
+    # Load dataset using DatasetProcessor
+    processor = DatasetProcessor(cfg.dataset.name)
+    train_dataset = processor.load_prepared_dataset(train_path)
 
-    # Initialize model for training
-    print("\n" + "="*80)
-    print("Initializing model and tokenizer...")
-    print("="*80)
-
-    use_flash_attention = not args.no_flash_attention
-
-    model, tokenizer, lora_config = initialize_model_for_training(
-        model_id=config.hf.model_id,
+    # Initialize model and tokenizer
+    use_flash_attention = cfg.training.get("use_flash_attention", True)
+    model, tokenizer, _ = initialize_model_for_training(
+        model_id=cfg.hf.model_id,
         use_flash_attention=use_flash_attention,
-        max_seq_length=config.training.max_seq_length,
+        max_seq_length=cfg.training.max_seq_length,
     )
 
-    # Update LoRA config with training config values
+    # Configure LoRA if applicable
     lora_config = ModelSetup.create_lora_config(
-        lora_alpha=config.training.lora_alpha,
-        lora_dropout=config.training.lora_dropout,
-        lora_r=config.training.lora_r,
+        lora_alpha=cfg.training.get("lora_alpha", 16),
+        lora_dropout=cfg.training.get("lora_dropout", 0.05),
+        lora_r=cfg.training.get("lora_r", 8),
     )
 
-    # Print trainable parameters
+    # Print number of trainable parameters
     print_trainable_parameters(model)
 
-    # CRITICAL: Format dataset with chat template BEFORE training
-    print("\n" + "="*80)
-    print("Formatting dataset with chat template...")
-    print("="*80)
+    # Format dataset for training
     train_dataset = format_dataset_for_training(train_dataset, tokenizer)
 
-    # Create trainer
-    print("\n" + "="*80)
-    print("Setting up trainer...")
-    print("="*80)
-
+    # Setup trainer
     trainer = ModelTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         peft_config=lora_config,
-        output_dir=config.training.output_dir,
+        output_dir=Path(cfg.training.output_dir).resolve(),
     )
 
-    # Create training arguments
+    report_to = "wandb" if cfg.wandb.enable and cfg.wandb.api_key else None
+
+    # Prepare training arguments
     training_args = trainer.create_training_arguments(
-        num_train_epochs=config.training.num_train_epochs,
-        per_device_train_batch_size=config.training.per_device_train_batch_size,
-        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-        learning_rate=config.training.learning_rate,
-        max_grad_norm=config.training.max_grad_norm,
-        warmup_ratio=config.training.warmup_ratio,
-        logging_steps=config.training.logging_steps,
-        push_to_hub=False,  # Set to True if you want to push to Hub
+        num_train_epochs=cfg.training.num_train_epochs,
+        per_device_train_batch_size=cfg.training.per_device_train_batch_size,
+        gradient_accumulation_steps=cfg.training.gradient_accumulation_steps,
+        learning_rate=cfg.training.learning_rate,
+        max_grad_norm=cfg.training.get("max_grad_norm", 1.0),
+        warmup_ratio=cfg.training.get("warmup_ratio", 0.03),
+        logging_steps=cfg.training.get("logging_steps", 10),
+        push_to_hub=False,
+        report_to=report_to,
     )
 
     # Start training
     print("\n" + "="*80)
     print("Starting training...")
     print("="*80)
-    print(f"Output directory: {config.training.output_dir}")
-    print(f"Number of epochs: {config.training.num_train_epochs}")
+    print(f"Output directory: {cfg.training.output_dir}")
+    print(f"Number of epochs: {cfg.training.num_train_epochs}")
     print(f"Training samples: {len(train_dataset)}")
-    print(f"Resume from checkpoint: {not args.no_resume}")
+    print(f"Resume from checkpoint: {cfg.training.resume_from_checkpoint}")
     print("="*80 + "\n")
 
-    resume = not args.no_resume
-    trainer.train(training_args, resume_from_checkpoint=resume)
+    trainer.train(
+        training_args,
+        resume_from_checkpoint=cfg.training.resume_from_checkpoint
+    )
 
-    # Save model
+    # Save model and clean up
     print("\n" + "="*80)
     print("Saving model...")
     print("="*80)
@@ -165,13 +131,12 @@ def main():
     print("\n" + "="*80)
     print("Training completed successfully!")
     print("="*80)
-    print(f"Model saved to: {config.training.output_dir}")
+    print(f"Model saved to: {cfg.training.output_dir}")
     print("\nNext steps:")
     print("1. Evaluate the model: python scripts/evaluate.py")
     print("2. Test inference: python scripts/inference.py --interactive")
     print("3. Merge and upload: python scripts/merge_and_upload.py")
     print("="*80)
-
 
 if __name__ == "__main__":
     main()
