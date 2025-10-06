@@ -80,7 +80,7 @@ def main():
     print("\n" + "="*80)
     print("Loading training dataset...")
     print("="*80)
-    processor = DatasetProcessor(config.dataset.dataset_name)
+    processor = DatasetProcessor(config.dataset.name)
     train_dataset = processor.load_prepared_dataset(config.dataset.train_path)
 
     # Initialize model for training

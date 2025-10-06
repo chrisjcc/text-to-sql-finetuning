@@ -5,11 +5,14 @@ Handles dataset loading, processing, and conversion.
 
 import logging
 from pathlib import Path
+import os
 from typing import Dict, List, Any
 
 from datasets import load_dataset, Dataset, DatasetDict
+from config.config import Config
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class DatasetProcessor:
@@ -39,6 +42,13 @@ SCHEMA:
             Loaded dataset
         """
         logger.info(f"Loading dataset: {self.dataset_name}, split: {split}")
+
+        from dotenv import load_dotenv
+        import os
+
+        load_dotenv()
+        hf_token = os.getenv("HF_TOKEN")
+
         try:
             dataset = load_dataset(self.dataset_name, split=split)
             logger.info(f"Successfully loaded {len(dataset)} samples")
@@ -130,6 +140,10 @@ SCHEMA:
             train_path: Path to save training dataset
             test_path: Path to save test dataset
         """
+        # Ensure parent directories exist
+        train_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+
         logger.info(f"Saving training dataset to {train_path}")
         dataset["train"].to_json(str(train_path), orient="records")
         
@@ -189,3 +203,24 @@ def prepare_and_save_datasets(
     logger.info(dataset["train"][0]["messages"])
     
     return dataset
+
+
+def main():
+    config = Config.load()
+
+    processor = DatasetProcessor(config.dataset.name)
+    dataset = processor.prepare_dataset(
+        total_samples=config.dataset.train_samples + config.dataset.test_samples,
+        test_size=config.dataset.test_samples
+    )
+
+    processor.save_datasets(dataset, config.dataset.train_path, config.dataset.test_path)
+
+    # Print example
+    logger.info("\nExample conversation:")
+    logger.info(dataset["train"][0]["messages"])
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    main()

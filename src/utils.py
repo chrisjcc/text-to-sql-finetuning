@@ -6,10 +6,10 @@ import logging
 import sys
 from pathlib import Path
 from typing import Optional
-
-import torch
+import os
 from huggingface_hub import login
 
+import torch
 
 def setup_logging(
     log_file: Optional[Path] = None,
@@ -35,22 +35,29 @@ def setup_logging(
     )
 
 
-def authenticate_huggingface(token: str) -> None:
+def authenticate_huggingface(token: Optional[str] = None) -> None:
     """
-    Authenticate with Hugging Face Hub.
-    
+    Optionally authenticate with Hugging Face Hub. Login is only required
+    for write operations (pushing models/datasets).
+
     Args:
         token: Hugging Face API token
     """
     logger = logging.getLogger(__name__)
-    logger.info("Authenticating with Hugging Face Hub")
-    
-    try:
-        login(token=token, add_to_git_credential=True)
-        logger.info("Successfully authenticated with Hugging Face")
-    except Exception as e:
-        logger.error(f"Failed to authenticate with Hugging Face: {e}")
-        raise
+
+    # Load token from .env if not provided
+    if token is None:
+        load_dotenv()
+        token = os.environ.get("HF_TOKEN")
+
+    if token:
+        try:
+            login(token=token, add_to_git_credential=True)
+            logger.info("Successfully authenticated with Hugging Face")
+        except Exception as e:
+            logger.warning(f"Hugging Face login failed, continuing anyway: {e}")
+    else:
+        logger.info("No Hugging Face token provided; skipping login.")
 
 
 def check_gpu_availability() -> None:
@@ -60,7 +67,6 @@ def check_gpu_availability() -> None:
     if torch.cuda.is_available():
         device_count = torch.cuda.device_count()
         logger.info(f"GPU available: {device_count} device(s)")
-        
         for i in range(device_count):
             device_name = torch.cuda.get_device_name(i)
             device_memory = torch.cuda.get_device_properties(i).total_memory / 1e9
@@ -105,17 +111,9 @@ def print_trainable_parameters(model) -> None:
         model: The model to inspect
     """
     logger = logging.getLogger(__name__)
-    
-    trainable_params = 0
-    all_params = 0
-    
-    for _, param in model.named_parameters():
-        all_params += param.numel()
-        if param.requires_grad:
-            trainable_params += param.numel()
-    
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    all_params = sum(p.numel() for p in model.parameters())
     trainable_percent = 100 * trainable_params / all_params
-    
     logger.info(f"Trainable parameters: {trainable_params:,}")
     logger.info(f"All parameters: {all_params:,}")
     logger.info(f"Trainable%: {trainable_percent:.2f}%")
@@ -163,13 +161,6 @@ def get_model_size_mb(model) -> float:
     Returns:
         Model size in MB
     """
-    param_size = 0
-    for param in model.parameters():
-        param_size += param.numel() * param.element_size()
-    
-    buffer_size = 0
-    for buffer in model.buffers():
-        buffer_size += buffer.numel() * buffer.element_size()
-    
-    size_mb = (param_size + buffer_size) / 1024**2
-    return size_mb
+    param_size = sum(p.numel() * p.element_size() for p in model.parameters())
+    buffer_size = sum(b.numel() * b.element_size() for b in model.buffers())
+    return (param_size + buffer_size) / 1024**2
