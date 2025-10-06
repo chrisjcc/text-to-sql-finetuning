@@ -1,13 +1,16 @@
-.PHONY: help install install-flash setup prepare-data train evaluate clean
+.PHONY: help install install-flash install-wandb setup prepare-data train evaluate merge-upload inference clean
 
 help:
 	@echo "Available commands:"
 	@echo "  make install         - Install Python dependencies"
 	@echo "  make install-flash   - Install Flash Attention (requires CUDA)"
+	@echo "  make install-wandb   - Install Weights & Biases for tracking"
 	@echo "  make setup          - Setup project (install + create directories)"
 	@echo "  make prepare-data   - Prepare and save datasets"
 	@echo "  make train          - Train the model"
 	@echo "  make evaluate       - Evaluate the trained model"
+	@echo "  make merge-upload   - Merge LoRA and upload to HuggingFace"
+	@echo "  make inference      - Run interactive inference"
 	@echo "  make clean          - Clean up generated files"
 
 install:
@@ -16,6 +19,9 @@ install:
 install-flash:
 	pip install ninja packaging
 	MAX_JOBS=4 pip install flash-attn --no-build-isolation
+
+install-wandb:
+	pip install wandb
 
 setup: install
 	mkdir -p data logs config
@@ -32,6 +38,12 @@ train:
 
 evaluate:
 	python scripts/evaluate.py
+
+merge-upload:
+	python scripts/merge_and_upload.py
+
+inference:
+	python scripts/inference.py --interactive
 
 clean:
 	rm -rf __pycache__ src/__pycache__ config/__pycache__ scripts/__pycache__

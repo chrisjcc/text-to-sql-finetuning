@@ -41,14 +41,16 @@ class ModelSetup:
     @staticmethod
     def load_model_and_tokenizer(
         model_id: str,
-        use_flash_attention: bool = True
+        use_flash_attention: bool = True,
+        max_seq_length: int = 2048
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Load model and tokenizer with quantization and Flash Attention.
         
         Args:
             model_id: Hugging Face model ID
-            use_flash_attention: Whether to use Flash Attention 2
+            use_flash_attention: Whether to attempt Flash Attention 2
+            max_seq_length: Maximum sequence length for the model
             
         Returns:
             Tuple of (model, tokenizer)
@@ -58,8 +60,18 @@ class ModelSetup:
         # Create quantization config
         bnb_config = ModelSetup.create_bnb_config()
         
-        # Determine attention implementation
-        attn_implementation = "flash_attention_2" if use_flash_attention else "eager"
+        # Determine attention implementation with graceful fallback
+        if use_flash_attention:
+            try:
+                import flash_attn
+                attn_implementation = "flash_attention_2"
+                logger.info("✓ Flash Attention 2 available")
+            except ImportError:
+                attn_implementation = "sdpa"
+                logger.warning("⚠ Flash Attention 2 not available, using SDPA")
+        else:
+            attn_implementation = "sdpa"
+            logger.info("Using SDPA attention (Flash Attention disabled)")
         
         try:
             # Load model
@@ -75,7 +87,8 @@ class ModelSetup:
             # Load tokenizer
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             tokenizer.padding_side = 'right'  # Prevent warnings
-            logger.info("Tokenizer loaded successfully")
+            tokenizer.model_max_length = max_seq_length  # Set max sequence length
+            logger.info(f"Tokenizer loaded successfully (max_length={max_seq_length})")
             
             return model, tokenizer
             
@@ -171,6 +184,7 @@ class ModelSetup:
 def initialize_model_for_training(
     model_id: str,
     use_flash_attention: bool = True,
+    max_seq_length: int = 2048,
     lora_config: LoraConfig = None
 ) -> Tuple[PreTrainedModel, PreTrainedTokenizer, LoraConfig]:
     """
@@ -178,7 +192,8 @@ def initialize_model_for_training(
     
     Args:
         model_id: Hugging Face model ID
-        use_flash_attention: Whether to use Flash Attention 2
+        use_flash_attention: Whether to attempt Flash Attention 2
+        max_seq_length: Maximum sequence length for the model
         lora_config: Optional pre-configured LoRA config
         
     Returns:
@@ -187,7 +202,11 @@ def initialize_model_for_training(
     setup = ModelSetup()
     
     # Load model and tokenizer
-    model, tokenizer = setup.load_model_and_tokenizer(model_id, use_flash_attention)
+    model, tokenizer = setup.load_model_and_tokenizer(
+        model_id,
+        use_flash_attention,
+        max_seq_length
+    )
     
     # Setup chat format
     model, tokenizer = setup.setup_for_chat(model, tokenizer)

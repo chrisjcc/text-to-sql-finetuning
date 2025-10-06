@@ -20,6 +20,7 @@ class HuggingFaceConfig:
     
     token: str
     model_id: str
+    username: str
     
     @classmethod
     def from_env(cls) -> "HuggingFaceConfig":
@@ -29,7 +30,27 @@ class HuggingFaceConfig:
             raise ValueError("HF_TOKEN not found in environment variables")
         
         model_id = os.getenv("HF_MODEL_ID", "meta-llama/Meta-Llama-3.1-8B")
-        return cls(token=token, model_id=model_id)
+        username = os.getenv("HF_USERNAME", "")
+
+        return cls(token=token, model_id=model_id, username=username)
+
+
+@dataclass
+class WandBConfig:
+    """Configuration for Weights & Biases tracking."""
+
+    api_key: Optional[str]
+    project: str
+    enabled: bool
+
+    @classmethod
+    def from_env(cls) -> "WandBConfig":
+        """Create configuration from environment variables."""
+        api_key = os.getenv("WANDB_API_KEY")
+        project = os.getenv("WANDB_PROJECT", "text-to-sql-finetuning")
+        enabled = api_key is not None and api_key.strip() != ""
+
+        return cls(api_key=api_key, project=project, enabled=enabled)
 
 
 @dataclass
@@ -124,6 +145,7 @@ class Config:
     """Main configuration class combining all sub-configurations."""
     
     hf: HuggingFaceConfig
+    wandb: WandBConfig
     dataset: DatasetConfig
     training: TrainingConfig
     evaluation: EvaluationConfig
@@ -133,6 +155,7 @@ class Config:
         """Load all configurations from environment variables."""
         return cls(
             hf=HuggingFaceConfig.from_env(),
+            wandb=WandBConfig.from_env(),
             dataset=DatasetConfig.from_env(),
             training=TrainingConfig.from_env(),
             evaluation=EvaluationConfig.from_env(),
