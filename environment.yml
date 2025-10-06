@@ -1,0 +1,18 @@
+# environment.yml
+name: llm_env
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pip
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.4  # optional, if GPU available
+  - cudatoolkit        # fallback for CPU/GPU compatibility
+  - pip:
+      - uv>=0.4.0
