@@ -22,9 +22,9 @@ Fine-tune a language model to generate SQL queries based on natural language ins
 ```
 text-to-sql-finetuning/
 ├── .env.example              # Example environment variables
-├── .gitignore               # Git ignore file
-├── requirements.txt         # Python dependencies
-├── README.md               # This file
+├── .gitignore                # Git ignore file
+├── requirements.txt          # Python dependencies
+├── README.md                 # This file
 ├── config/
 │   └── config.py           # Configuration management
 ├── src/
@@ -32,12 +32,12 @@ text-to-sql-finetuning/
 │   ├── data_preparation.py  # Dataset loading and preprocessing
 │   ├── model_setup.py       # Model and tokenizer initialization
 │   ├── training.py          # Training logic with SFTTrainer
-│   └── utils.py            # Utility functions
+│   └── utils.py             # Utility functions
 ├── scripts/
 │   ├── prepare_data.py      # Data preparation script
-│   ├── train.py            # Training script
-│   └── evaluate.py         # Evaluation script
-└── data/                   # Dataset storage (created automatically)
+│   ├── train.py             # Training script
+│   └── evaluate.py          # Evaluation script
+└── data/                    # Dataset storage (created automatically)
 ```
 
 ## 🚀 Quick Start
