@@ -2,161 +2,41 @@
 Configuration module for Text-to-SQL fine-tuning project.
 Loads environment variables and provides configuration classes.
 """
-
-import os
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
-
 from dotenv import load_dotenv
+import os
 
-# Load environment variables from .env file
 load_dotenv()
 
-
-@dataclass
-class HuggingFaceConfig:
-    """Configuration for Hugging Face authentication and model."""
-    
-    token: str
-    model_id: str
-    username: str
-    
-    @classmethod
-    def from_env(cls) -> "HuggingFaceConfig":
-        """Create configuration from environment variables."""
+class Config:
+    class hf:
         token = os.getenv("HF_TOKEN")
-        if not token:
-            raise ValueError("HF_TOKEN not found in environment variables")
-        
-        model_id = os.getenv("HF_MODEL_ID", "meta-llama/Meta-Llama-3.1-8B")
-        username = os.getenv("HF_USERNAME", "")
+        model_id = os.getenv("HF_MODEL_ID")
+        username = os.getenv("HF_USERNAME")
 
-        return cls(token=token, model_id=model_id, username=username)
-
-
-@dataclass
-class WandBConfig:
-    """Configuration for Weights & Biases tracking."""
-
-    api_key: Optional[str]
-    project: str
-    enabled: bool
-
-    @classmethod
-    def from_env(cls) -> "WandBConfig":
-        """Create configuration from environment variables."""
+    class wandb:
         api_key = os.getenv("WANDB_API_KEY")
-        project = os.getenv("WANDB_PROJECT", "text-to-sql-finetuning")
-        enabled = api_key is not None and api_key.strip() != ""
+        project = os.getenv("WANDB_PROJECT")
+        enabled = bool(api_key)  # WandB is enabled if API key is set
 
-        return cls(api_key=api_key, project=project, enabled=enabled)
+    class training:
+        output_dir = Path(os.getenv("OUTPUT_DIR", "output"))
+        num_train_epochs = int(os.getenv("NUM_TRAIN_EPOCHS", 3))
+        per_device_train_batch_size = int(os.getenv("PER_DEVICE_TRAIN_BATCH_SIZE", 1))
+        gradient_accumulation_steps = int(os.getenv("GRADIENT_ACCUMULATION_STEPS", 8))
+        learning_rate = float(os.getenv("LEARNING_RATE", 2e-4))
+        max_seq_length = int(os.getenv("MAX_SEQ_LENGTH", 2048))
 
-
-@dataclass
-class DatasetConfig:
-    """Configuration for dataset preparation."""
-    
-    dataset_name: str
-    train_samples: int
-    test_samples: int
-    train_path: Path
-    test_path: Path
-    
-    @classmethod
-    def from_env(cls) -> "DatasetConfig":
-        """Create configuration from environment variables."""
-        dataset_name = os.getenv("DATASET_NAME", "b-mc2/sql-create-context")
-        train_samples = int(os.getenv("TRAIN_SAMPLES", "10000"))
-        test_samples = int(os.getenv("TEST_SAMPLES", "2500"))
+    class dataset:
+        name = os.getenv("DATASET_NAME")
+        train_samples = int(os.getenv("TRAIN_SAMPLES", 10000))
+        test_samples = int(os.getenv("TEST_SAMPLES", 2500))
         train_path = Path(os.getenv("TRAIN_DATASET_PATH", "data/train_dataset.json"))
         test_path = Path(os.getenv("TEST_DATASET_PATH", "data/test_dataset.json"))
-        
-        # Create data directory if it doesn't exist
-        train_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        return cls(
-            dataset_name=dataset_name,
-            train_samples=train_samples,
-            test_samples=test_samples,
-            train_path=train_path,
-            test_path=test_path,
-        )
 
+    class evaluation:
+        num_eval_samples = int(os.getenv("NUM_EVAL_SAMPLES", 1000))
 
-@dataclass
-class TrainingConfig:
-    """Configuration for model training."""
-    
-    output_dir: str
-    num_train_epochs: int
-    per_device_train_batch_size: int
-    gradient_accumulation_steps: int
-    learning_rate: float
-    max_seq_length: int
-    
-    # LoRA parameters
-    lora_alpha: int = 128
-    lora_dropout: float = 0.05
-    lora_r: int = 256
-    
-    # Additional training parameters
-    max_grad_norm: float = 0.3
-    warmup_ratio: float = 0.03
-    logging_steps: int = 10
-    
-    @classmethod
-    def from_env(cls) -> "TrainingConfig":
-        """Create configuration from environment variables."""
-        return cls(
-            output_dir=os.getenv("OUTPUT_DIR", "code-llama-3-1-8b-text-to-sql"),
-            num_train_epochs=int(os.getenv("NUM_TRAIN_EPOCHS", "3")),
-            per_device_train_batch_size=int(os.getenv("PER_DEVICE_TRAIN_BATCH_SIZE", "1")),
-            gradient_accumulation_steps=int(os.getenv("GRADIENT_ACCUMULATION_STEPS", "8")),
-            learning_rate=float(os.getenv("LEARNING_RATE", "2e-4")),
-            max_seq_length=int(os.getenv("MAX_SEQ_LENGTH", "2048")),
-        )
-
-
-@dataclass
-class EvaluationConfig:
-    """Configuration for model evaluation."""
-    
-    model_path: str
-    test_dataset_path: Path
-    num_eval_samples: int
-    
-    @classmethod
-    def from_env(cls) -> "EvaluationConfig":
-        """Create configuration from environment variables."""
-        output_dir = os.getenv("OUTPUT_DIR", "code-llama-3-1-8b-text-to-sql")
-        test_path = Path(os.getenv("TEST_DATASET_PATH", "data/test_dataset.json"))
-        num_eval_samples = int(os.getenv("NUM_EVAL_SAMPLES", "1000"))
-        
-        return cls(
-            model_path=f"./{output_dir}",
-            test_dataset_path=test_path,
-            num_eval_samples=num_eval_samples,
-        )
-
-
-@dataclass
-class Config:
-    """Main configuration class combining all sub-configurations."""
-    
-    hf: HuggingFaceConfig
-    wandb: WandBConfig
-    dataset: DatasetConfig
-    training: TrainingConfig
-    evaluation: EvaluationConfig
-    
-    @classmethod
-    def load(cls) -> "Config":
-        """Load all configurations from environment variables."""
-        return cls(
-            hf=HuggingFaceConfig.from_env(),
-            wandb=WandBConfig.from_env(),
-            dataset=DatasetConfig.from_env(),
-            training=TrainingConfig.from_env(),
-            evaluation=EvaluationConfig.from_env(),
-        )
+    @staticmethod
+    def load():
+        return Config

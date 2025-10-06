@@ -30,20 +30,25 @@ setup: install
 		echo "Created .env file. Please edit it with your credentials."; \
 	fi
 
+# uses module-style execution
 prepare-data:
-	python scripts/prepare_data.py
+	@mkdir -p data
+	@echo "Running data preparation..."
+	@python -m scripts.prepare_data || { echo "⚠ Data preparation failed. Check HF_TOKEN and dataset access."; exit 1; }
+	@echo "✓ Data preparation completed successfully"
 
 train:
-	python scripts/train.py
+	@mkdir -p logs
+	@python -m scripts.train || { echo "⚠ Training failed."; exit 1; }
 
 evaluate:
-	python scripts/evaluate.py
+	python -m scripts.evaluate
 
 merge-upload:
-	python scripts/merge_and_upload.py
+	python -m scripts.merge_and_upload
 
 inference:
-	python scripts/inference.py --interactive
+	python -m scripts.inference --interactive
 
 clean:
 	rm -rf __pycache__ src/__pycache__ config/__pycache__ scripts/__pycache__
