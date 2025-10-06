@@ -92,6 +92,7 @@ class ModelTrainer:
         warmup_ratio: float = 0.03,
         logging_steps: int = 10,
         push_to_hub: bool = True,
+        report_to: Optional[str] = "tensorboard",
     ) -> TrainingArguments:
         """
         Create training arguments for the trainer.
@@ -126,7 +127,7 @@ class ModelTrainer:
             warmup_ratio=warmup_ratio,
             lr_scheduler_type="constant",
             push_to_hub=push_to_hub,
-            report_to="tensorboard",
+            report_to=report_to,
         )
     
     def create_trainer(self, training_args: TrainingArguments) -> SFTTrainer:
