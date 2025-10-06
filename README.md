@@ -90,8 +90,12 @@ python scripts/train.py
 ```
 
 Training options:
-- `--no-resume`: Start fresh without resuming from checkpoint
-- `--no-flash-attention`: Disable Flash Attention 2 (fallback to SDPA)
+- `training.resume_from_checkpoint=false`: start fresh without resuming from checkpoint
+- `training.flash_attention=false`: disable Flash Attention 2 (fallback to SDPA)
+- Example:
+  ```bash
+  python scripts/train.py training.resume_from_checkpoint=true training.flash_attention=false
+  ```
 
 Training configuration:
 - Model: Meta-Llama-3.1-8B
