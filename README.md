@@ -22,9 +22,9 @@ Fine-tune a language model to generate SQL queries based on natural language ins
 ```
 text-to-sql-finetuning/
 ├── .env.example              # Example environment variables
-├── .gitignore                # Git ignore file
-├── requirements.txt          # Python dependencies
-├── README.md                 # This file
+├── .gitignore               # Git ignore file
+├── requirements.txt         # Python dependencies
+├── README.md               # This file
 ├── config/
 │   └── config.py           # Configuration management
 ├── src/
@@ -32,12 +32,12 @@ text-to-sql-finetuning/
 │   ├── data_preparation.py  # Dataset loading and preprocessing
 │   ├── model_setup.py       # Model and tokenizer initialization
 │   ├── training.py          # Training logic with SFTTrainer
-│   └── utils.py             # Utility functions
+│   └── utils.py            # Utility functions
 ├── scripts/
 │   ├── prepare_data.py      # Data preparation script
-│   ├── train.py             # Training script
-│   └── evaluate.py          # Evaluation script
-└── data/                    # Dataset storage (created automatically)
+│   ├── train.py            # Training script
+│   └── evaluate.py         # Evaluation script
+└── data/                   # Dataset storage (created automatically)
 ```
 
 ## 🚀 Quick Start
@@ -89,6 +89,10 @@ This will:
 python scripts/train.py
 ```
 
+Training options:
+- `--no-resume`: Start fresh without resuming from checkpoint
+- `--no-flash-attention`: Disable Flash Attention 2 (fallback to SDPA)
+
 Training configuration:
 - Model: Meta-Llama-3.1-8B
 - Quantization: 4-bit with QLoRA
@@ -109,6 +113,24 @@ This will:
 - Evaluate on 1000 test samples
 - Report accuracy metrics
 
+### 6. Merge and Upload (Optional)
+
+```bash
+# Merge LoRA adapter with base model and upload to Hub
+python scripts/merge_and_upload.py
+
+# Upload adapter only (lightweight)
+python scripts/merge_and_upload.py --skip-merge
+
+# Merge only, don't upload
+python scripts/merge_and_upload.py --skip-upload
+
+# Create private repository
+python scripts/merge_and_upload.py --private
+```
+
+Note: Merging requires significant memory (>30GB). If you encounter OOM errors, upload just the adapter.
+
 ## ⚙️ Configuration
 
 All configuration is managed through environment variables in the `.env` file:
@@ -117,6 +139,13 @@ All configuration is managed through environment variables in the `.env` file:
 ```bash
 HF_TOKEN=your_token_here
 HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B
+HF_USERNAME=your_hf_username  # Required for uploading to Hub
+```
+
+### Weights & Biases (Optional)
+```bash
+WANDB_API_KEY=your_wandb_key_here  # Optional: for experiment tracking
+WANDB_PROJECT=text-to-sql-finetuning
 ```
 
 ### Training Parameters
@@ -281,9 +310,45 @@ huggingface-cli login
 - [TRL Documentation](https://huggingface.co/docs/trl)
 - [PEFT Documentation](https://huggingface.co/docs/peft)
 
+## ⚠️ Important Notes
+
+### API Changes in Latest TRL
+
+This codebase uses the **latest TRL API** which requires:
+
+1. **Pre-formatting datasets**: Apply chat template to dataset before training
+   ```python
+   # Format dataset with chat template
+   train_dataset = train_dataset.map(format_for_training)
+
+   # Then pass to SFTTrainer (simplified API)
+   trainer = SFTTrainer(
+       model=model,
+       args=args,
+       train_dataset=train_dataset,  # Already formatted
+       peft_config=peft_config,
+   )
+   ```
+
+2. **Flash Attention fallback**: Gracefully falls back to SDPA if Flash Attention unavailable
+   ```python
+   try:
+       import flash_attn
+       attn_implementation = "flash_attention_2"
+   except ImportError:
+       attn_implementation = "sdpa"
+   ```
+
+3. **Resume from checkpoint**: Supports automatic checkpoint resuming
+   ```python
+   trainer.train(resume_from_checkpoint=True)
+   ```
+
+These changes ensure compatibility with the latest versions of `transformers`, `trl`, and `peft` libraries.
+
 ## 📄 License
 
-MIT License - see LICENSE file for details
+Apache-2.0 license - see LICENSE file for details
 
 ## 🤝 Contributing
 

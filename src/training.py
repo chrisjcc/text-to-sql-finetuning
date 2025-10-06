@@ -18,6 +18,42 @@ from datasets import Dataset
 logger = logging.getLogger(__name__)
 
 
+def format_dataset_for_training(
+    dataset: Dataset,
+    tokenizer: PreTrainedTokenizer
+) -> Dataset:
+    """
+    Format dataset by applying chat template to create text field.
+    This is required for the latest trl SFTTrainer API.
+
+    Args:
+        dataset: Dataset with 'messages' field
+        tokenizer: Tokenizer with chat template
+
+    Returns:
+        Formatted dataset with 'text' field
+    """
+    logger.info("Formatting dataset with chat template...")
+
+    def format_for_training(example):
+        """Apply chat template and return as text field"""
+        formatted_text = tokenizer.apply_chat_template(
+            example["messages"],
+            tokenize=False,
+            add_generation_prompt=False
+        )
+        return {"text": formatted_text}
+
+    formatted_dataset = dataset.map(
+        format_for_training,
+        remove_columns=dataset.column_names,
+        desc="Applying chat template"
+    )
+
+    logger.info(f"Sample formatted text:\n{formatted_dataset[0]['text'][:500]}...")
+    return formatted_dataset
+
+
 class ModelTrainer:
     """Handles model training with SFTTrainer and LoRA."""
     
@@ -28,7 +64,6 @@ class ModelTrainer:
         train_dataset: Dataset,
         peft_config: LoraConfig,
         output_dir: str,
-        max_seq_length: int = 2048,
     ):
         """
         Initialize the model trainer.
@@ -36,17 +71,15 @@ class ModelTrainer:
         Args:
             model: Pre-trained model to fine-tune
             tokenizer: Tokenizer for the model
-            train_dataset: Training dataset
+            train_dataset: Training dataset (should have 'text' field)
             peft_config: PEFT/LoRA configuration
             output_dir: Directory to save model checkpoints
-            max_seq_length: Maximum sequence length
         """
         self.model = model
         self.tokenizer = tokenizer
         self.train_dataset = train_dataset
         self.peft_config = peft_config
         self.output_dir = output_dir
-        self.max_seq_length = max_seq_length
         self.trainer: Optional[SFTTrainer] = None
     
     def create_training_arguments(
@@ -99,6 +132,7 @@ class ModelTrainer:
     def create_trainer(self, training_args: TrainingArguments) -> SFTTrainer:
         """
         Create SFTTrainer instance.
+        Updated to use the new simplified API that works with pre-formatted datasets.
         
         Args:
             training_args: Training arguments
@@ -109,18 +143,12 @@ class ModelTrainer:
         logger.info("Creating SFTTrainer")
         
         try:
+            # New simplified API - dataset should already have 'text' field
             trainer = SFTTrainer(
                 model=self.model,
                 args=training_args,
                 train_dataset=self.train_dataset,
                 peft_config=self.peft_config,
-                max_seq_length=self.max_seq_length,
-                tokenizer=self.tokenizer,
-                packing=True,
-                dataset_kwargs={
-                    "add_special_tokens": False,  # We template with special tokens
-                    "append_concat_token": False,  # No need to add additional separator token
-                }
             )
             logger.info("SFTTrainer created successfully")
             return trainer
@@ -129,12 +157,13 @@ class ModelTrainer:
             logger.error(f"Failed to create trainer: {e}")
             raise
     
-    def train(self, training_args: TrainingArguments) -> None:
+    def train(self, training_args: TrainingArguments, resume_from_checkpoint: bool = True) -> None:
         """
         Train the model.
         
         Args:
             training_args: Training arguments
+            resume_from_checkpoint: Whether to resume from latest checkpoint if available
         """
         logger.info("Starting training")
         
@@ -143,7 +172,7 @@ class ModelTrainer:
         
         # Start training
         try:
-            self.trainer.train()
+            self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
             logger.info("Training completed successfully")
         except Exception as e:
             logger.error(f"Training failed: {e}")
@@ -177,7 +206,7 @@ def train_model(
     train_dataset: Dataset,
     peft_config: LoraConfig,
     training_args: TrainingArguments,
-    max_seq_length: int = 2048,
+    resume_from_checkpoint: bool = True,
 ) -> ModelTrainer:
     """
     Convenience function to train a model.
@@ -185,10 +214,10 @@ def train_model(
     Args:
         model: Pre-trained model
         tokenizer: Tokenizer
-        train_dataset: Training dataset
+        train_dataset: Training dataset (should have 'text' field)
         peft_config: LoRA configuration
         training_args: Training arguments
-        max_seq_length: Maximum sequence length
+        resume_from_checkpoint: Whether to resume from checkpoint
         
     Returns:
         ModelTrainer instance
@@ -199,10 +228,9 @@ def train_model(
         train_dataset=train_dataset,
         peft_config=peft_config,
         output_dir=training_args.output_dir,
-        max_seq_length=max_seq_length,
     )
     
-    trainer_wrapper.train(training_args)
+    trainer_wrapper.train(training_args, resume_from_checkpoint=resume_from_checkpoint)
     trainer_wrapper.save_model()
     
     return trainer_wrapper

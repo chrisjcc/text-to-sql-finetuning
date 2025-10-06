@@ -1,208 +1,177 @@
 """
-Training module for fine-tuning models using SFTTrainer.
+Script to fine-tune a language model for text-to-SQL generation.
+
+Usage:
+    python scripts/train.py
+    python scripts/train.py --no-resume  # Start fresh without resuming
 """
 
-import logging
-from typing import Optional
+import sys
+import argparse
+from pathlib import Path
 
-import torch
-from transformers import (
-    TrainingArguments,
-    PreTrainedModel,
-    PreTrainedTokenizer,
+# Add src to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from src.data_preparation import DatasetProcessor
+from src.model_setup import initialize_model_for_training, ModelSetup
+from src.training import ModelTrainer, format_dataset_for_training
+from src.utils import (
+    setup_logging,
+    authenticate_huggingface,
+    check_gpu_availability,
+    print_trainable_parameters,
+    validate_file_exists,
 )
-from trl import SFTTrainer
-from peft import LoraConfig
-from datasets import Dataset
-
-logger = logging.getLogger(__name__)
+from config.config import Config
 
 
-class ModelTrainer:
-    """Handles model training with SFTTrainer and LoRA."""
-    
-    def __init__(
-        self,
-        model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizer,
-        train_dataset: Dataset,
-        peft_config: LoraConfig,
-        output_dir: str,
-        max_seq_length: int = 2048,
-    ):
-        """
-        Initialize the model trainer.
-        
-        Args:
-            model: Pre-trained model to fine-tune
-            tokenizer: Tokenizer for the model
-            train_dataset: Training dataset
-            peft_config: PEFT/LoRA configuration
-            output_dir: Directory to save model checkpoints
-            max_seq_length: Maximum sequence length
-        """
-        self.model = model
-        self.tokenizer = tokenizer
-        self.train_dataset = train_dataset
-        self.peft_config = peft_config
-        self.output_dir = output_dir
-        self.max_seq_length = max_seq_length
-        self.trainer: Optional[SFTTrainer] = None
-    
-    def create_training_arguments(
-        self,
-        num_train_epochs: int = 3,
-        per_device_train_batch_size: int = 1,
-        gradient_accumulation_steps: int = 8,
-        learning_rate: float = 2e-4,
-        max_grad_norm: float = 0.3,
-        warmup_ratio: float = 0.03,
-        logging_steps: int = 10,
-        push_to_hub: bool = True,
-    ) -> TrainingArguments:
-        """
-        Create training arguments for the trainer.
-        
-        Args:
-            num_train_epochs: Number of training epochs
-            per_device_train_batch_size: Batch size per device
-            gradient_accumulation_steps: Number of gradient accumulation steps
-            learning_rate: Learning rate
-            max_grad_norm: Maximum gradient norm
-            warmup_ratio: Warmup ratio for learning rate scheduler
-            logging_steps: Number of steps between logging
-            push_to_hub: Whether to push model to Hugging Face Hub
-            
-        Returns:
-            TrainingArguments object
-        """
-        logger.info("Creating training arguments")
-        return TrainingArguments(
-            output_dir=self.output_dir,
-            num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,
-            gradient_accumulation_steps=gradient_accumulation_steps,
-            gradient_checkpointing=True,
-            optim="adamw_torch_fused",
-            logging_steps=logging_steps,
-            save_strategy="epoch",
-            learning_rate=learning_rate,
-            bf16=True,
-            tf32=True,
-            max_grad_norm=max_grad_norm,
-            warmup_ratio=warmup_ratio,
-            lr_scheduler_type="constant",
-            push_to_hub=push_to_hub,
-            report_to="tensorboard",
-        )
-    
-    def create_trainer(self, training_args: TrainingArguments) -> SFTTrainer:
-        """
-        Create SFTTrainer instance.
-        
-        Args:
-            training_args: Training arguments
-            
-        Returns:
-            Configured SFTTrainer
-        """
-        logger.info("Creating SFTTrainer")
-        
+def setup_wandb(config):
+    """Setup Weights & Biases tracking if enabled."""
+    if config.wandb.enabled:
         try:
-            trainer = SFTTrainer(
-                model=self.model,
-                args=training_args,
-                train_dataset=self.train_dataset,
-                peft_config=self.peft_config,
-                max_seq_length=self.max_seq_length,
-                tokenizer=self.tokenizer,
-                packing=True,
-                dataset_kwargs={
-                    "add_special_tokens": False,  # We template with special tokens
-                    "append_concat_token": False,  # No need to add additional separator token
-                }
-            )
-            logger.info("SFTTrainer created successfully")
-            return trainer
-            
+            import wandb
+            wandb.login(key=config.wandb.api_key)
+            wandb.init(project=config.wandb.project)
+            print(f"✓ Weights & Biases tracking enabled (project: {config.wandb.project})")
+        except ImportError:
+            print("⚠ wandb not installed. Install with: pip install wandb")
         except Exception as e:
-            logger.error(f"Failed to create trainer: {e}")
-            raise
-    
-    def train(self, training_args: TrainingArguments) -> None:
-        """
-        Train the model.
-        
-        Args:
-            training_args: Training arguments
-        """
-        logger.info("Starting training")
-        
-        # Create trainer
-        self.trainer = self.create_trainer(training_args)
-        
-        # Start training
-        try:
-            self.trainer.train()
-            logger.info("Training completed successfully")
-        except Exception as e:
-            logger.error(f"Training failed: {e}")
-            raise
-    
-    def save_model(self) -> None:
-        """Save the trained model and tokenizer."""
-        if self.trainer is None:
-            raise ValueError("Trainer not initialized. Call train() first.")
-        
-        logger.info(f"Saving model to {self.output_dir}")
-        try:
-            self.trainer.save_model()
-            logger.info("Model saved successfully")
-        except Exception as e:
-            logger.error(f"Failed to save model: {e}")
-            raise
-    
-    def cleanup(self) -> None:
-        """Clean up GPU memory after training."""
-        logger.info("Cleaning up GPU memory")
-        del self.model
-        del self.trainer
-        torch.cuda.empty_cache()
-        logger.info("Cleanup completed")
+            print(f"⚠ Failed to setup WandB: {e}")
+    else:
+        print("WandB tracking disabled (no API key found)")
 
 
-def train_model(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
-    train_dataset: Dataset,
-    peft_config: LoraConfig,
-    training_args: TrainingArguments,
-    max_seq_length: int = 2048,
-) -> ModelTrainer:
-    """
-    Convenience function to train a model.
-    
-    Args:
-        model: Pre-trained model
-        tokenizer: Tokenizer
-        train_dataset: Training dataset
-        peft_config: LoRA configuration
-        training_args: Training arguments
-        max_seq_length: Maximum sequence length
-        
-    Returns:
-        ModelTrainer instance
-    """
-    trainer_wrapper = ModelTrainer(
+def main():
+    """Main training function."""
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="Train text-to-SQL model")
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Start fresh without resuming from checkpoint"
+    )
+    parser.add_argument(
+        "--no-flash-attention",
+        action="store_true",
+        help="Disable Flash Attention 2 (use SDPA instead)"
+    )
+    args = parser.parse_args()
+
+    # Setup logging
+    setup_logging(log_file=Path("logs/training.log"))
+
+    # Load configuration
+    config = Config.load()
+
+    # Authenticate with Hugging Face
+    authenticate_huggingface(config.hf.token)
+
+    # Setup WandB if configured
+    setup_wandb(config)
+
+    # Check GPU availability
+    check_gpu_availability()
+
+    # Validate training dataset exists
+    validate_file_exists(config.dataset.train_path, "Training dataset")
+
+    # Load training dataset
+    print("\n" + "="*80)
+    print("Loading training dataset...")
+    print("="*80)
+    processor = DatasetProcessor(config.dataset.dataset_name)
+    train_dataset = processor.load_prepared_dataset(config.dataset.train_path)
+
+    # Initialize model for training
+    print("\n" + "="*80)
+    print("Initializing model and tokenizer...")
+    print("="*80)
+
+    use_flash_attention = not args.no_flash_attention
+
+    model, tokenizer, lora_config = initialize_model_for_training(
+        model_id=config.hf.model_id,
+        use_flash_attention=use_flash_attention,
+        max_seq_length=config.training.max_seq_length,
+    )
+
+    # Update LoRA config with training config values
+    lora_config = ModelSetup.create_lora_config(
+        lora_alpha=config.training.lora_alpha,
+        lora_dropout=config.training.lora_dropout,
+        lora_r=config.training.lora_r,
+    )
+
+    # Print trainable parameters
+    print_trainable_parameters(model)
+
+    # CRITICAL: Format dataset with chat template BEFORE training
+    print("\n" + "="*80)
+    print("Formatting dataset with chat template...")
+    print("="*80)
+    train_dataset = format_dataset_for_training(train_dataset, tokenizer)
+
+    # Create trainer
+    print("\n" + "="*80)
+    print("Setting up trainer...")
+    print("="*80)
+
+    trainer = ModelTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
-        peft_config=peft_config,
-        output_dir=training_args.output_dir,
-        max_seq_length=max_seq_length,
+        peft_config=lora_config,
+        output_dir=config.training.output_dir,
     )
-    
-    trainer_wrapper.train(training_args)
-    trainer_wrapper.save_model()
-    
-    return trainer_wrapper
+
+    # Create training arguments
+    training_args = trainer.create_training_arguments(
+        num_train_epochs=config.training.num_train_epochs,
+        per_device_train_batch_size=config.training.per_device_train_batch_size,
+        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        learning_rate=config.training.learning_rate,
+        max_grad_norm=config.training.max_grad_norm,
+        warmup_ratio=config.training.warmup_ratio,
+        logging_steps=config.training.logging_steps,
+        push_to_hub=False,  # Set to True if you want to push to Hub
+    )
+
+    # Start training
+    print("\n" + "="*80)
+    print("Starting training...")
+    print("="*80)
+    print(f"Output directory: {config.training.output_dir}")
+    print(f"Number of epochs: {config.training.num_train_epochs}")
+    print(f"Training samples: {len(train_dataset)}")
+    print(f"Resume from checkpoint: {not args.no_resume}")
+    print("="*80 + "\n")
+
+    resume = not args.no_resume
+    trainer.train(training_args, resume_from_checkpoint=resume)
+
+    # Save model
+    print("\n" + "="*80)
+    print("Saving model...")
+    print("="*80)
+    trainer.save_model()
+
+    # Cleanup
+    print("\n" + "="*80)
+    print("Cleaning up...")
+    print("="*80)
+    trainer.cleanup()
+
+    print("\n" + "="*80)
+    print("Training completed successfully!")
+    print("="*80)
+    print(f"Model saved to: {config.training.output_dir}")
+    print("\nNext steps:")
+    print("1. Evaluate the model: python scripts/evaluate.py")
+    print("2. Test inference: python scripts/inference.py --interactive")
+    print("3. Merge and upload: python scripts/merge_and_upload.py")
+    print("="*80)
+
+
+if __name__ == "__main__":
+    main()
