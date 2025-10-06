@@ -1,0 +1,19 @@
+# PyTorch and core libraries
+torch==2.4.0
+tensorboard
+
+# Authentication
+python-dotenv==1.1.1
+
+# Hugging Face libraries
+transformers==4.44.2
+datasets==2.21.0
+accelerate==0.33.0
+evaluate==0.4.2
+bitsandbytes==0.43.3
+trl==0.9.6
+peft==0.12.0
+
+# Flash Attention dependencies
+ninja
+packaging
