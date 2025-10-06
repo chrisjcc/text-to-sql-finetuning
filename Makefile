@@ -4,7 +4,6 @@ help:
 	@echo "Available commands:"
 	@echo "  make install         - Install Python dependencies"
 	@echo "  make install-flash   - Install Flash Attention (requires CUDA)"
-	@echo "  make install-wandb   - Install Weights & Biases for tracking"
 	@echo "  make setup          - Setup project (install + create directories)"
 	@echo "  make prepare-data   - Prepare and save datasets"
 	@echo "  make train          - Train the model"
@@ -19,9 +18,6 @@ install:
 install-flash:
 	pip install ninja packaging
 	MAX_JOBS=4 pip install flash-attn --no-build-isolation
-
-install-wandb:
-	pip install wandb
 
 setup: install
 	mkdir -p data logs config
@@ -54,6 +50,7 @@ clean:
 	rm -rf __pycache__ src/__pycache__ config/__pycache__ scripts/__pycache__
 	rm -rf logs/*.log
 	rm -rf data/*.json
+	rm -rf wandb/*.log
 	find . -type d -name "*.egg-info" -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -exec rm -rf {} +
