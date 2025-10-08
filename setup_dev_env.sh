@@ -3,41 +3,33 @@ set -e  # Exit on first error
 set -o pipefail
 
 # ------------------------------
-# 0. Clone repository and enter it
-# ------------------------------
-REPO_URL="https://github.com/chrisjcc/text-to-sql-finetuning.git"
-REPO_DIR="$(basename "$REPO_URL" .git)"
-
-if [ ! -d "$REPO_DIR" ]; then
-    echo "⏳ Cloning repository from $REPO_URL..."
-    git clone "$REPO_URL"
-else
-    echo "✅ Repository '$REPO_DIR' already exists. Pulling latest changes..."
-    cd "$REPO_DIR"
-    git pull
-    cd ..
-fi
-
-cd "$REPO_DIR"
-echo "📂 Entered project directory: $(pwd)"
-
-# ------------------------------
-# 1. Check Miniconda
+# 0. Preliminary checks
 # ------------------------------
 ARCH=$(uname -m)
 
-# Normalize architecture name to match Miniconda's naming convention
-case "$ARCH" in
-    x86_64)   ARCH_TAG="x86_64" ;;
-    aarch64)  ARCH_TAG="aarch64" ;;
-    arm64)    ARCH_TAG="aarch64" ;;  # in case uname returns arm64 (common on Macs)
-    *) echo "❌ Unsupported architecture: $ARCH" && exit 1 ;;
-esac
+if [ "$ARCH" != "x86_64" ]; then
+    echo "❌ Unsupported architecture: $ARCH"
+    echo "This repository requires x86_64 (NVIDIA GPU support expected)."
+    exit 1
+fi
 
-MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-${ARCH_TAG}.sh"
+echo "✅ Architecture check passed: $ARCH"
+
+# Confirm we are inside the repository
+if [ ! -f "setup_dev_env.sh" ]; then
+    echo "❌ This script must be run from within the repository root."
+    exit 1
+fi
+
+echo "📂 Running setup inside repository: $(pwd)"
+
+# ------------------------------
+# 1. Check and install Miniconda
+# ------------------------------
+MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
 
 if [ ! -d "$HOME/miniconda3" ]; then
-    echo "⏳ Installing Miniconda for ${ARCH_TAG}..."
+    echo "⏳ Installing Miniconda for x86_64..."
     mkdir -p "$HOME/miniconda3"
     wget -q "$MINICONDA_URL" -O "$HOME/miniconda3/miniconda.sh"
     bash "$HOME/miniconda3/miniconda.sh" -b -u -p "$HOME/miniconda3"
@@ -55,7 +47,13 @@ eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
 conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
-conda install -y mamba -n base -c conda-forge
+# Check if mamba is installed in the base environment
+if conda list -n base | grep -q '^mamba\s'; then
+    echo "✅ Mamba is already installed in the base environment."
+else
+    echo "⏳ Installing mamba in the base environment..."
+    conda install -y mamba -n base -c conda-forge
+fi
 
 # ------------------------------
 # 3. Create and activate environment
@@ -100,7 +98,7 @@ fi
 # 7. Final messages
 # ------------------------------
 echo "✅ Setup complete. Environment '$ENV_NAME' is ready."
-echo "ℹ️ Make sure to activate: conda activate $ENV_NAME"
+echo "ℹ️ Activate it with: conda activate $ENV_NAME"
 echo "ℹ️ You can now run:"
 echo "    make setup        # create folders + .env"
 echo "    make prepare-data # prepare datasets"
