@@ -84,6 +84,7 @@ def main(cfg: DictConfig):
         train_dataset=train_dataset,
         peft_config=lora_config,
         output_dir=Path(cfg.training.output_dir).resolve(),
+        max_seq_length=cfg.training.max_seq_length,
     )
 
     report_to = "wandb" if cfg.wandb.enable and cfg.wandb.api_key else None

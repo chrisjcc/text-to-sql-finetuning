@@ -21,7 +21,8 @@ install-flash:
 	pip install ninja packaging
 	MAX_JOBS=4 pip install flash-attn --no-build-isolation
 
-setup: install
+setup:
+        @echo "🔧 Creating project directories..."
 	mkdir -p data logs config
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
