@@ -1,16 +1,18 @@
-.PHONY: help install install-flash install-wandb setup prepare-data train evaluate merge-upload inference clean
+.PHONY: help install install-flash install-wandb setup prepare-data train train-accelerate train-basic evaluate merge-upload inference clean
 
 help:
 	@echo "Available commands:"
-	@echo "  make install         - Install Python dependencies"
-	@echo "  make install-flash   - Install Flash Attention (requires CUDA)"
-	@echo "  make setup          - Setup project (install + create directories)"
-	@echo "  make prepare-data   - Prepare and save datasets"
-	@echo "  make train          - Train the model"
-	@echo "  make evaluate       - Evaluate the trained model"
-	@echo "  make merge-upload   - Merge LoRA and upload to HuggingFace"
-	@echo "  make inference      - Run interactive inference"
-	@echo "  make clean          - Clean up generated files"
+	@echo "  make install           - Install Python dependencies"
+	@echo "  make install-flash     - Install Flash Attention (requires CUDA)"
+	@echo "  make setup            - Setup project (install + create directories)"
+	@echo "  make prepare-data     - Prepare and save datasets"
+	@echo "  make train            - Train (auto-detect accelerate/python)"
+	@echo "  make train-accelerate - Train with accelerate (force)"
+	@echo "  make train-basic      - Train with python (force)"
+	@echo "  make evaluate         - Evaluate the trained model"
+	@echo "  make merge-upload     - Merge LoRA and upload to HuggingFace"
+	@echo "  make inference        - Run interactive inference"
+	@echo "  make clean            - Clean up generated files"
 
 install:
 	pip install -r requirements.txt
@@ -26,15 +28,29 @@ setup: install
 		echo "Created .env file. Please edit it with your credentials."; \
 	fi
 
-# uses module-style execution
 prepare-data:
 	@mkdir -p data
 	@echo "Running data preparation..."
 	@python -m scripts.prepare_data || { echo "⚠ Data preparation failed. Check HF_TOKEN and dataset access."; exit 1; }
 	@echo "✓ Data preparation completed successfully"
 
+# Auto-detect and use best training method
 train:
 	@mkdir -p logs
+	@if command -v accelerate >/dev/null 2>&1; then \
+		$(MAKE) train-accelerate; \
+	else \
+		$(MAKE) train-basic; \
+	fi
+
+# Force use of accelerate
+train-accelerate:
+	@echo "🚀 Training with accelerate launch..."
+	@accelerate launch scripts/train.py || { echo "⚠ Training with accelerate failed."; exit 1; }
+
+# Force use of basic python
+train-basic:
+	@echo "🐍 Training with python -m..."
 	@python -m scripts.train || { echo "⚠ Training failed."; exit 1; }
 
 evaluate:
