@@ -54,8 +54,11 @@ train-basic:
 	@echo "🐍 Training with python -m..."
 	@python -m scripts.train || { echo "⚠ Training failed."; exit 1; }
 
+# Designed for single-GPU
 evaluate:
-	python -m scripts.evaluate
+	@echo "📊 Running evaluation..."
+	@python -m scripts.evaluate || { echo "⚠ Evaluation failed."; exit 1; }
+
 
 merge-upload:
 	python -m scripts.merge_and_upload
