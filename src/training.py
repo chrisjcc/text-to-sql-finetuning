@@ -7,11 +7,10 @@ from typing import Optional
 
 import torch
 from transformers import (
-    TrainingArguments,
     PreTrainedModel,
     PreTrainedTokenizer,
 )
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
 from datasets import Dataset
 
@@ -56,7 +55,7 @@ def format_dataset_for_training(
 
 class ModelTrainer:
     """Handles model training with SFTTrainer and LoRA."""
-    
+
     def __init__(
         self,
         model: PreTrainedModel,
@@ -64,24 +63,27 @@ class ModelTrainer:
         train_dataset: Dataset,
         peft_config: LoraConfig,
         output_dir: str,
+        max_seq_length: int = 2048,
     ):
         """
         Initialize the model trainer.
-        
+
         Args:
             model: Pre-trained model to fine-tune
             tokenizer: Tokenizer for the model
             train_dataset: Training dataset (should have 'text' field)
             peft_config: PEFT/LoRA configuration
             output_dir: Directory to save model checkpoints
+            max_seq_length: Maximum sequence length for training
         """
         self.model = model
         self.tokenizer = tokenizer
         self.train_dataset = train_dataset
         self.peft_config = peft_config
         self.output_dir = output_dir
+        self.max_seq_length = max_seq_length
         self.trainer: Optional[SFTTrainer] = None
-    
+
     def create_training_arguments(
         self,
         num_train_epochs: int = 3,
@@ -93,10 +95,10 @@ class ModelTrainer:
         logging_steps: int = 10,
         push_to_hub: bool = True,
         report_to: Optional[str] = "tensorboard",
-    ) -> TrainingArguments:
+    ) -> SFTConfig:
         """
         Create training arguments for the trainer.
-        
+
         Args:
             num_train_epochs: Number of training epochs
             per_device_train_batch_size: Batch size per device
@@ -106,12 +108,13 @@ class ModelTrainer:
             warmup_ratio: Warmup ratio for learning rate scheduler
             logging_steps: Number of steps between logging
             push_to_hub: Whether to push model to Hugging Face Hub
-            
+
         Returns:
-            TrainingArguments object
+            SFTConfig object
         """
-        logger.info("Creating training arguments")
-        return TrainingArguments(
+        logger.info("Creating SFT configuration")
+        return SFTConfig(
+            # Training arguments
             output_dir=self.output_dir,
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,
@@ -128,21 +131,24 @@ class ModelTrainer:
             lr_scheduler_type="constant",
             push_to_hub=push_to_hub,
             report_to=report_to,
+            # SFT-specific arguments
+            dataset_text_field="text",
+            max_seq_length=self.max_seq_length,
         )
-    
-    def create_trainer(self, training_args: TrainingArguments) -> SFTTrainer:
+
+    def create_trainer(self, training_args: SFTConfig) -> SFTTrainer:
         """
         Create SFTTrainer instance.
         Updated to use the new simplified API that works with pre-formatted datasets.
-        
+
         Args:
             training_args: Training arguments
-            
+
         Returns:
             Configured SFTTrainer
         """
         logger.info("Creating SFTTrainer")
-        
+
         try:
             # New simplified API - dataset should already have 'text' field
             trainer = SFTTrainer(
@@ -153,24 +159,24 @@ class ModelTrainer:
             )
             logger.info("SFTTrainer created successfully")
             return trainer
-            
+
         except Exception as e:
             logger.error(f"Failed to create trainer: {e}")
             raise
-    
-    def train(self, training_args: TrainingArguments, resume_from_checkpoint: bool = True) -> None:
+
+    def train(self, training_args: SFTConfig, resume_from_checkpoint: bool = True) -> None:
         """
         Train the model.
-        
+
         Args:
             training_args: Training arguments
             resume_from_checkpoint: Whether to resume from latest checkpoint if available
         """
         logger.info("Starting training")
-        
+
         # Create trainer
         self.trainer = self.create_trainer(training_args)
-        
+
         # Start training
         try:
             self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
@@ -178,12 +184,12 @@ class ModelTrainer:
         except Exception as e:
             logger.error(f"Training failed: {e}")
             raise
-    
+
     def save_model(self) -> None:
         """Save the trained model and tokenizer."""
         if self.trainer is None:
             raise ValueError("Trainer not initialized. Call train() first.")
-        
+
         logger.info(f"Saving model to {self.output_dir}")
         try:
             self.trainer.save_model()
@@ -191,7 +197,7 @@ class ModelTrainer:
         except Exception as e:
             logger.error(f"Failed to save model: {e}")
             raise
-    
+
     def cleanup(self) -> None:
         """Clean up GPU memory after training."""
         logger.info("Cleaning up GPU memory")
@@ -206,12 +212,12 @@ def train_model(
     tokenizer: PreTrainedTokenizer,
     train_dataset: Dataset,
     peft_config: LoraConfig,
-    training_args: TrainingArguments,
+    training_args: SFTConfig,
     resume_from_checkpoint: bool = True,
 ) -> ModelTrainer:
     """
     Convenience function to train a model.
-    
+
     Args:
         model: Pre-trained model
         tokenizer: Tokenizer
@@ -219,7 +225,7 @@ def train_model(
         peft_config: LoRA configuration
         training_args: Training arguments
         resume_from_checkpoint: Whether to resume from checkpoint
-        
+
     Returns:
         ModelTrainer instance
     """
@@ -230,8 +236,8 @@ def train_model(
         peft_config=peft_config,
         output_dir=training_args.output_dir,
     )
-    
+
     trainer_wrapper.train(training_args, resume_from_checkpoint=resume_from_checkpoint)
     trainer_wrapper.save_model()
-    
+
     return trainer_wrapper
