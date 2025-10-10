@@ -136,7 +136,7 @@ def main(cfg: DictConfig):
     print("\nNext steps:")
     print("1. Evaluate the model: python scripts/evaluate.py")
     print("2. Test inference: python scripts/inference.py --interactive")
-    print("3. Merge and upload: python scripts/merge_and_upload.py")
+    print("3. Merge and upload: python scripts/upload_to_hf.py")
     print("="*80)
 
 if __name__ == "__main__":
