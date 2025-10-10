@@ -1,4 +1,4 @@
 # config/evaluation/evaluation.yaml
 num_eval_samples: 1000
-model_path: outputs/final_model
+model_path: code-llama-3-1-8b-text-to-sql
 test_dataset_path: data/test_dataset.json

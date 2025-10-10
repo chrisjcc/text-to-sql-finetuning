@@ -13,6 +13,7 @@ import gc
 from pathlib import Path
 from typing import Optional, Dict, Any
 import json
+from dotenv import load_dotenv
 
 import torch
 import hydra
@@ -75,31 +76,31 @@ def print_error(message: str) -> None:
 def validate_prerequisites(cfg: DictConfig) -> bool:
     """
     Validate that all prerequisites are met for upload.
-    
+
     Args:
         cfg: Hydra configuration
-        
+
     Returns:
         True if all checks pass, False otherwise
     """
     print_section("Validating Prerequisites")
-    
+
     checks_passed = True
-    
+
     # Check HF token
     if not cfg.hf.token:
         print_error("HF_TOKEN not set. Add it to your .env file.")
         checks_passed = False
     else:
         print_success("HF token found")
-    
+
     # Check username
     if not cfg.hf.username:
         print_error("HF username not configured")
         checks_passed = False
     else:
         print_success(f"HF username: {cfg.hf.username}")
-    
+
     # Check output directory exists
     output_dir = Path(cfg.training.output_dir)
     if not output_dir.exists():
@@ -108,7 +109,7 @@ def validate_prerequisites(cfg: DictConfig) -> bool:
         checks_passed = False
     else:
         print_success(f"Output directory found: {output_dir}")
-    
+
     # Check for adapter files
     adapter_config = output_dir / "adapter_config.json"
     if not adapter_config.exists():
@@ -116,7 +117,7 @@ def validate_prerequisites(cfg: DictConfig) -> bool:
         checks_passed = False
     else:
         print_success("Adapter files found")
-    
+
     # Check dataset if upload is enabled
     if cfg.hf.upload.upload_dataset:
         dataset_path = Path(cfg.dataset.train_dataset_path)
@@ -125,7 +126,7 @@ def validate_prerequisites(cfg: DictConfig) -> bool:
             checks_passed = False
         else:
             print_success(f"Dataset found: {dataset_path}")
-    
+
     return checks_passed
 
 
@@ -140,7 +141,7 @@ def create_model_card(
 ) -> str:
     """
     Create a comprehensive model card for Hugging Face Hub.
-    
+
     Args:
         repo_id: Full repository ID (username/repo-name)
         base_model: Base model ID
@@ -149,12 +150,12 @@ def create_model_card(
         is_merged: Whether this is a merged model or adapter
         author_name: Author name for citation
         license: License type
-        
+
     Returns:
         Model card content as string
     """
     model_type = "Merged Model" if is_merged else "LoRA Adapter"
-    
+
     # Format training parameters
     epochs = training_config.get('num_train_epochs', 3)
     batch_size = training_config.get('per_device_train_batch_size', 1)
@@ -165,7 +166,7 @@ def create_model_card(
     lora_alpha = training_config.get('lora_alpha', 16)
     lora_dropout = training_config.get('lora_dropout', 0.05)
     max_seq_length = training_config.get('max_seq_length', 2048)
-    
+
     usage_code = f"""```python
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
@@ -422,11 +423,11 @@ For questions or feedback, please open an issue on the model repository.
 
 ---
 
-**Model Type**: {'Full fine-tuned model' if is_merged else 'LoRA adapter weights'}  
-**Training Date**: 2025  
-**Model Size**: {'~8B parameters' if '8B' in base_model or '8b' in base_model else '~1B parameters' if '1B' in base_model or '1b' in base_model else 'See base model'}  
+**Model Type**: {'Full fine-tuned model' if is_merged else 'LoRA adapter weights'}
+**Training Date**: 2025
+**Model Size**: {'~8B parameters' if '8B' in base_model or '8b' in base_model else '~1B parameters' if '1B' in base_model or '1b' in base_model else 'See base model'}
 """
-    
+
     return card
 
 
@@ -438,13 +439,13 @@ def create_dataset_card(
 ) -> str:
     """
     Create a dataset card for Hugging Face Hub.
-    
+
     Args:
         repo_id: Full repository ID (username/repo-name)
         dataset_path: Path to dataset file
         dataset_name: Display name for dataset
         license: License type
-        
+
     Returns:
         Dataset card content as string
     """
@@ -452,10 +453,10 @@ def create_dataset_card(
     try:
         dataset = load_dataset("json", data_files=str(dataset_path))
         num_samples = len(dataset['train'])
-        
+
         # Get sample for schema display
         sample = dataset['train'][0]
-        
+
         # Try to extract schema info from first few samples
         schemas_found = set()
         for i in range(min(5, num_samples)):
@@ -470,14 +471,14 @@ def create_dataset_card(
                         if 'CREATE TABLE' in schema_part:
                             schemas_found.add(schema_part.split(';')[0] + ';')
                     break
-        
+
         example_schema = list(schemas_found)[0] if schemas_found else "CREATE TABLE example (id INT, name VARCHAR(100));"
-        
+
     except Exception as e:
         num_samples = "Unknown"
         sample = {"messages": []}
         example_schema = "CREATE TABLE example (id INT, name VARCHAR(100));"
-    
+
     # Determine size category
     if isinstance(num_samples, int):
         if num_samples < 1000:
@@ -490,7 +491,7 @@ def create_dataset_card(
             size_cat = "n>100K"
     else:
         size_cat = "unknown"
-    
+
     card = f"""---
 language:
 - en
@@ -725,11 +726,11 @@ For questions, issues, or contributions, please open an issue on the dataset rep
 
 ---
 
-**Dataset Version**: 1.0  
-**Last Updated**: 2025  
+**Dataset Version**: 1.0
+**Last Updated**: 2025
 **Maintained by**: {repo_id.split('/')[0]}
 """
-    
+
     return card
 
 
@@ -740,20 +741,20 @@ def upload_adapter_to_hub(
 ) -> str:
     """
     Upload LoRA adapter to Hugging Face Hub.
-    
+
     Args:
         cfg: Hydra configuration
         output_dir: Path to model output directory
         repo_name: Repository name (without username)
-        
+
     Returns:
         Repository URL
     """
     print_section(f"Step 1: Uploading LoRA Adapter")
-    
+
     repo_id = f"{cfg.hf.username}/{repo_name}"
     api = HfApi()
-    
+
     # Create repository
     print(f"Creating repository: {repo_id}")
     try:
@@ -767,7 +768,7 @@ def upload_adapter_to_hub(
         print_success(f"Repository ready: {repo_id}")
     except Exception as e:
         print(f"Note: {e}")
-    
+
     # Load training configuration
     training_config = {}
     try:
@@ -778,7 +779,7 @@ def upload_adapter_to_hub(
                 training_config['lora_r'] = adapter_config.get('r', 8)
                 training_config['lora_alpha'] = adapter_config.get('lora_alpha', 16)
                 training_config['lora_dropout'] = adapter_config.get('lora_dropout', 0.05)
-        
+
         # Add from Hydra config
         training_config['num_train_epochs'] = cfg.training.num_train_epochs
         training_config['per_device_train_batch_size'] = cfg.training.per_device_train_batch_size
@@ -788,10 +789,10 @@ def upload_adapter_to_hub(
         training_config['warmup_ratio'] = cfg.training.get('warmup_ratio', 0.03)
         training_config['max_grad_norm'] = cfg.training.get('max_grad_norm', 0.3)
         training_config['use_flash_attention'] = cfg.training.get('use_flash_attention', True)
-        
+
     except Exception as e:
         print(f"Warning: Could not load training config: {e}")
-    
+
     # Create model card
     print("Generating model card...")
     model_card = create_model_card(
@@ -803,13 +804,13 @@ def upload_adapter_to_hub(
         author_name=cfg.hf.upload.author_name,
         license=cfg.hf.upload.license,
     )
-    
+
     # Save model card
     readme_path = output_dir / "README.md"
     with open(readme_path, "w") as f:
         f.write(model_card)
     print_success(f"Model card created: {readme_path}")
-    
+
     # Upload files
     print(f"Uploading adapter files to {repo_id}...")
     try:
@@ -821,11 +822,11 @@ def upload_adapter_to_hub(
             ignore_patterns=["*.pt", "*.bin", "checkpoint-*", "merged", "runs"],  # Skip checkpoints and tensorboard logs
         )
         print_success("Adapter uploaded successfully!")
-        
+
         repo_url = f"https://huggingface.co/{repo_id}"
         print_success(f"View at: {repo_url}")
         return repo_url
-        
+
     except Exception as e:
         print_error(f"Upload failed: {e}")
         raise
@@ -838,25 +839,25 @@ def merge_and_upload_model(
 ) -> str:
     """
     Merge LoRA adapter with base model and upload to Hub.
-    
+
     Args:
         cfg: Hydra configuration
         adapter_path: Path to adapter directory
         repo_name: Repository name (without username)
-        
+
     Returns:
         Repository URL
     """
     print_section("Step 2: Merging and Uploading Full Model")
     print("⚠️  This requires significant memory (>30GB RAM/VRAM)")
-    
+
     repo_id = f"{cfg.hf.username}/{repo_name}"
     api = HfApi()
-    
+
     # Create output path for merged model
     merged_path = adapter_path / "merged"
     merged_path.mkdir(exist_ok=True)
-    
+
     try:
         # Create quantization config to save memory
         print("Loading base model with 4-bit quantization...")
@@ -866,7 +867,7 @@ def merge_and_upload_model(
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16
         )
-        
+
         # Load base model
         base_model = AutoModelForCausalLM.from_pretrained(
             cfg.hf.model_id,
@@ -876,15 +877,15 @@ def merge_and_upload_model(
             token=cfg.hf.token,
         )
         print_success(f"Base model loaded: {cfg.hf.model_id}")
-        
+
         # Load tokenizer
         tokenizer = AutoTokenizer.from_pretrained(adapter_path)
         print_success("Tokenizer loaded from adapter")
-        
+
         # Apply chat format
         print("Setting up chat format...")
         base_model, tokenizer = setup_chat_format(base_model, tokenizer)
-        
+
         # Load PEFT adapter
         print("Loading LoRA adapter...")
         peft_model = PeftModel.from_pretrained(
@@ -893,23 +894,23 @@ def merge_and_upload_model(
             torch_dtype=torch.bfloat16,
         )
         print_success("LoRA adapter loaded")
-        
+
         # Merge adapter weights
         print("Merging adapter weights into base model...")
         merged_model = peft_model.merge_and_unload()
         print_success("Merge completed")
-        
+
         # Save merged model
         print(f"Saving merged model to: {merged_path}")
         merged_model.save_pretrained(merged_path, safe_serialization=True)
         tokenizer.save_pretrained(merged_path)
         print_success("Merged model saved locally")
-        
+
         # Cleanup memory
         del base_model, peft_model, merged_model
         torch.cuda.empty_cache()
         gc.collect()
-        
+
         # Create repository
         print(f"Creating repository: {repo_id}")
         try:
@@ -923,7 +924,7 @@ def merge_and_upload_model(
             print_success(f"Repository ready: {repo_id}")
         except Exception as e:
             print(f"Note: {e}")
-        
+
         # Load training configuration
         training_config = {}
         try:
@@ -934,7 +935,7 @@ def merge_and_upload_model(
                     training_config['lora_r'] = adapter_config.get('r', 8)
                     training_config['lora_alpha'] = adapter_config.get('lora_alpha', 16)
                     training_config['lora_dropout'] = adapter_config.get('lora_dropout', 0.05)
-            
+
             training_config['num_train_epochs'] = cfg.training.num_train_epochs
             training_config['per_device_train_batch_size'] = cfg.training.per_device_train_batch_size
             training_config['gradient_accumulation_steps'] = cfg.training.gradient_accumulation_steps
@@ -943,10 +944,10 @@ def merge_and_upload_model(
             training_config['warmup_ratio'] = cfg.training.get('warmup_ratio', 0.03)
             training_config['max_grad_norm'] = cfg.training.get('max_grad_norm', 0.3)
             training_config['use_flash_attention'] = cfg.training.get('use_flash_attention', True)
-            
+
         except Exception as e:
             print(f"Warning: Could not load training config: {e}")
-        
+
         # Create model card
         print("Generating model card for merged model...")
         model_card = create_model_card(
@@ -958,13 +959,13 @@ def merge_and_upload_model(
             author_name=cfg.hf.upload.author_name,
             license=cfg.hf.upload.license,
         )
-        
+
         # Save model card
         readme_path = merged_path / "README.md"
         with open(readme_path, "w") as f:
             f.write(model_card)
         print_success(f"Model card created: {readme_path}")
-        
+
         # Upload merged model
         print(f"Uploading merged model to {repo_id}...")
         api.upload_folder(
@@ -974,11 +975,11 @@ def merge_and_upload_model(
             commit_message="Upload merged text-to-SQL model",
         )
         print_success("Merged model uploaded successfully!")
-        
+
         repo_url = f"https://huggingface.co/{repo_id}"
         print_success(f"View at: {repo_url}")
         return repo_url
-        
+
     except Exception as e:
         print_error(f"Merge/upload failed: {e}")
         print("\nNote: Merging requires significant memory (>30GB)")
@@ -993,20 +994,20 @@ def upload_dataset_to_hub(
 ) -> str:
     """
     Upload dataset to Hugging Face Hub.
-    
+
     Args:
         cfg: Hydra configuration
         dataset_path: Path to dataset file
         repo_name: Repository name (without username)
-        
+
     Returns:
         Repository URL
     """
     print_section("Step 3: Uploading Dataset")
-    
+
     repo_id = f"{cfg.hf.username}/{repo_name}"
     api = HfApi()
-    
+
     # Create dataset repository
     print(f"Creating dataset repository: {repo_id}")
     try:
@@ -1020,7 +1021,7 @@ def upload_dataset_to_hub(
         print_success(f"Dataset repository ready: {repo_id}")
     except Exception as e:
         print(f"Note: {e}")
-    
+
     # Load dataset
     print(f"Loading dataset from: {dataset_path}")
     try:
@@ -1030,7 +1031,7 @@ def upload_dataset_to_hub(
     except Exception as e:
         print_error(f"Failed to load dataset: {e}")
         raise
-    
+
     # Create dataset card
     print("Generating dataset card...")
     dataset_card = create_dataset_card(
@@ -1039,14 +1040,14 @@ def upload_dataset_to_hub(
         dataset_name=cfg.dataset.get('dataset_name', 'Text-to-SQL Dataset'),
         license=cfg.hf.upload.license,
     )
-    
+
     # Save dataset card to temp location
     dataset_dir = dataset_path.parent
     readme_path = dataset_dir / "README.md"
     with open(readme_path, "w") as f:
         f.write(dataset_card)
     print_success(f"Dataset card created: {readme_path}")
-    
+
     # Push dataset to Hub
     print(f"Uploading dataset to {repo_id}...")
     try:
@@ -1056,7 +1057,7 @@ def upload_dataset_to_hub(
             commit_message="Upload text-to-SQL training dataset",
         )
         print_success(f"Dataset uploaded: {num_samples} samples")
-        
+
         # Upload README separately
         api.upload_file(
             path_or_fileobj=str(readme_path),
@@ -1067,11 +1068,11 @@ def upload_dataset_to_hub(
             commit_message="Add dataset card",
         )
         print_success("Dataset card uploaded")
-        
+
         repo_url = f"https://huggingface.co/datasets/{repo_id}"
         print_success(f"View at: {repo_url}")
         return repo_url
-        
+
     except Exception as e:
         print_error(f"Dataset upload failed: {e}")
         raise
@@ -1080,15 +1081,18 @@ def upload_dataset_to_hub(
 @hydra.main(version_base=None, config_path="../config", config_name="config")
 def main(cfg: DictConfig):
     """Main upload function."""
-    
+
+    # Load environment variables (for secrets)
+    load_dotenv()
+
     # Setup logging
     log_file = Path(get_original_cwd()) / "logs" / "upload.log"
     setup_logging(log_file=log_file)
-    
+
     print(f"\n{Colors.BOLD}{'='*80}{Colors.END}")
     print(f"{Colors.BOLD}Uploading to Hugging Face Hub{Colors.END}")
     print(f"{Colors.BOLD}{'='*80}{Colors.END}\n")
-    
+
     # Display configuration
     print("Configuration:")
     print(f"  Username: {cfg.hf.username}")
@@ -1097,25 +1101,25 @@ def main(cfg: DictConfig):
     print(f"  Upload Merged: {cfg.hf.upload.upload_merged}")
     print(f"  Upload Dataset: {cfg.hf.upload.upload_dataset}")
     print()
-    
+
     # Validate prerequisites
     if not validate_prerequisites(cfg):
         print_error("Prerequisites check failed. Please fix the issues above.")
         return
-    
+
     # Authenticate
     authenticate_huggingface(cfg.hf.token)
-    
+
     # Define paths
     output_dir = Path(cfg.training.output_dir).resolve()
-    
+
     # Track results
     results = {
         'adapter': None,
         'merged': None,
         'dataset': None,
     }
-    
+
     # Upload adapter
     if cfg.hf.upload.upload_adapter:
         try:
@@ -1131,7 +1135,7 @@ def main(cfg: DictConfig):
             traceback.print_exc()
     else:
         print_skip("Skipping adapter upload (disabled in config)")
-    
+
     # Upload merged model
     if cfg.hf.upload.upload_merged:
         try:
@@ -1148,7 +1152,7 @@ def main(cfg: DictConfig):
             traceback.print_exc()
     else:
         print_skip("Skipping merged model upload (disabled in config)")
-    
+
     # Upload dataset
     if cfg.hf.upload.upload_dataset:
         try:
@@ -1164,27 +1168,27 @@ def main(cfg: DictConfig):
             traceback.print_exc()
     else:
         print_skip("Skipping dataset upload (disabled in config)")
-    
+
     # Print summary
     print_section("Upload Summary")
-    
+
     if results['adapter']:
         print_success(f"Adapter:  {results['adapter']}")
     else:
         print_skip("Adapter:  Not uploaded")
-    
+
     if results['merged']:
         print_success(f"Merged:   {results['merged']}")
     else:
         print_skip("Merged:   Not uploaded")
-    
+
     if results['dataset']:
         print_success(f"Dataset:  {results['dataset']}")
     else:
         print_skip("Dataset:  Not uploaded")
-    
+
     print(f"\n{Colors.GREEN}✅ Upload process completed!{Colors.END}\n")
-    
+
     # Next steps
     if results['adapter'] or results['merged']:
         print("Next steps:")
