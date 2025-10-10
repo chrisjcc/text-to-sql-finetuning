@@ -1,23 +1,38 @@
 # Exact pinned versions for reproducibility
+# Synced with pyproject.toml
 
 # PyTorch and core libraries
 torch==2.4.0
-tensorboard
+torchvision
+torchaudio
 
-# Authentication & tracking
-python-dotenv==1.1.1
+# CUDA support
+# Matches environment.yml setup (for GPU builds)
+pytorch-cuda==12.4
+cudatoolkit
+
+# Core runtime dependencies
+transformers==4.45.0
+datasets==3.0.0
 hydra-core==1.3.2
-wandb==0.22.1
+python-dotenv==1.0.1
 
-# Hugging Face libraries
-transformers==4.44.2
-datasets==2.21.0
-accelerate==0.33.0
+# Training dependencies (LoRA, TRL, PEFT, Accelerator, WandB)
+accelerate==1.10.1
+trl==0.11.0
+peft==0.13.0
+bitsandbytes==0.45.0
+wandb==0.18.5
+
+# Evaluation
 evaluate==0.4.2
-bitsandbytes==0.42.0
-trl==0.9.6
-peft==0.12.0
 
-# Flash Attention dependencies
+# Flash Attention dependencies (optional)
 ninja
 packaging
+
+# Development tools (optional)
+black==24.8.0
+isort==5.13.2
+pytest==8.3.0
+mypy==1.10.0
