@@ -2,6 +2,8 @@
 Model setup module for loading and configuring models for fine-tuning.
 """
 
+import os
+import json
 import logging
 from typing import Tuple
 
@@ -14,19 +16,19 @@ from transformers import (
     PreTrainedTokenizer,
 )
 from trl import setup_chat_format
-from peft import LoraConfig, PeftConfig
+from peft import LoraConfig, PeftConfig, PeftModel
 
 logger = logging.getLogger(__name__)
 
 
 class ModelSetup:
     """Handles model and tokenizer loading and configuration."""
-    
+
     @staticmethod
     def create_bnb_config() -> BitsAndBytesConfig:
         """
         Create BitsAndBytes configuration for 4-bit quantization.
-        
+
         Returns:
             BitsAndBytesConfig for 4-bit quantization with double quantization
         """
@@ -37,7 +39,7 @@ class ModelSetup:
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16
         )
-    
+
     @staticmethod
     def load_model_and_tokenizer(
         model_id: str,
@@ -46,20 +48,20 @@ class ModelSetup:
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Load model and tokenizer with quantization and Flash Attention.
-        
+
         Args:
             model_id: Hugging Face model ID
             use_flash_attention: Whether to attempt Flash Attention 2
             max_seq_length: Maximum sequence length for the model
-            
+
         Returns:
             Tuple of (model, tokenizer)
         """
         logger.info(f"Loading model: {model_id}")
-        
+
         # Create quantization config
         bnb_config = ModelSetup.create_bnb_config()
-        
+
         # Determine attention implementation with graceful fallback
         if use_flash_attention:
             try:
@@ -72,7 +74,7 @@ class ModelSetup:
         else:
             attn_implementation = "sdpa"
             logger.info("Using SDPA attention (Flash Attention disabled)")
-        
+
         try:
             # Load model
             model = AutoModelForCausalLM.from_pretrained(
@@ -83,19 +85,19 @@ class ModelSetup:
                 quantization_config=bnb_config
             )
             logger.info(f"Model loaded successfully with {attn_implementation} attention")
-            
+
             # Load tokenizer
             tokenizer = AutoTokenizer.from_pretrained(model_id)
             tokenizer.padding_side = 'right'  # Prevent warnings
             tokenizer.model_max_length = max_seq_length  # Set max sequence length
             logger.info(f"Tokenizer loaded successfully (max_length={max_seq_length})")
-            
+
             return model, tokenizer
-            
+
         except Exception as e:
             logger.error(f"Failed to load model or tokenizer: {e}")
             raise
-    
+
     @staticmethod
     def setup_for_chat(
         model: PreTrainedModel,
@@ -103,11 +105,11 @@ class ModelSetup:
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Setup model and tokenizer for chat format.
-        
+
         Args:
             model: Pre-trained model
             tokenizer: Pre-trained tokenizer
-            
+
         Returns:
             Tuple of (configured model, configured tokenizer)
         """
@@ -119,7 +121,7 @@ class ModelSetup:
         except Exception as e:
             logger.error(f"Failed to setup chat format: {e}")
             raise
-    
+
     @staticmethod
     def create_lora_config(
         lora_alpha: int = 128,
@@ -129,13 +131,13 @@ class ModelSetup:
     ) -> LoraConfig:
         """
         Create LoRA configuration for parameter-efficient fine-tuning.
-        
+
         Args:
             lora_alpha: LoRA alpha parameter
             lora_dropout: Dropout probability for LoRA layers
             lora_r: LoRA rank
             target_modules: Target modules for LoRA adaptation
-            
+
         Returns:
             LoraConfig object
         """
@@ -148,38 +150,96 @@ class ModelSetup:
             target_modules=target_modules,
             task_type="CAUSAL_LM",
         )
-    
+
     @staticmethod
     def load_trained_model(
         model_path: str,
-        device_map: str = "auto"
+        device_map: str = "auto",
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
-        Load a trained PEFT model for inference.
-        
+        Load a trained PEFT model (adapter + tokenizer) for inference.
+
         Args:
-            model_path: Path to the trained model
+            model_path: Path to the trained model directory
             device_map: Device mapping strategy
-            
+
         Returns:
             Tuple of (model, tokenizer)
         """
-        logger.info(f"Loading trained model from {model_path}")
-        
-        try:
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                device_map=device_map,
-                torch_dtype=torch.float16
-            )
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            logger.info("Trained model loaded successfully")
-            return model, tokenizer
-            
-        except Exception as e:
-            logger.error(f"Failed to load trained model: {e}")
-            raise
+        import json
+        from pathlib import Path
+        from trl import setup_chat_format  # Import here
 
+        logger.info(f"Loading trained model from {model_path}")
+
+        model_path = Path(model_path)
+
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model path does not exist: {model_path}")
+
+        try:
+            # Step 1: Get base model name from adapter config
+            adapter_config_path = model_path / "adapter_config.json"
+            if not adapter_config_path.exists():
+                raise FileNotFoundError(f"adapter_config.json not found in {model_path}")
+
+            with open(adapter_config_path, 'r') as f:
+                adapter_config = json.load(f)
+
+            base_model_name = adapter_config.get('base_model_name_or_path')
+            if not base_model_name:
+                raise ValueError("base_model_name_or_path not found in adapter_config.json")
+
+            logger.info(f"Loading base model: {base_model_name}")
+
+            # Step 2: Load base model
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                torch_dtype=torch.bfloat16,
+                device_map=device_map,
+                trust_remote_code=True,
+            )
+            logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
+
+            # Step 3: Load tokenizer from checkpoint
+            logger.info("Loading tokenizer from checkpoint...")
+            tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+            original_vocab_size = len(tokenizer)
+            logger.info(f"✓ Tokenizer loaded (initial vocab size: {original_vocab_size})")
+
+            # Step 4: CRITICAL - Apply setup_chat_format to add special tokens
+            # This must match what was done during training
+            logger.info("Applying chat format setup...")
+            model, tokenizer = setup_chat_format(model, tokenizer)
+            new_vocab_size = len(tokenizer)
+            logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
+
+            if new_vocab_size != original_vocab_size:
+                logger.info(f"  Added {new_vocab_size - original_vocab_size} special tokens")
+
+            # Step 5: Load PEFT adapter
+            logger.info(f"Loading LoRA adapter from {model_path}...")
+            model = PeftModel.from_pretrained(
+                model,
+                str(model_path),
+                torch_dtype=torch.bfloat16,
+            )
+            logger.info("✓ Adapter loaded successfully")
+
+            # Step 6: Set padding token if needed
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+                model.config.pad_token_id = tokenizer.eos_token_id
+                logger.info("✓ Padding token configured")
+
+            logger.info("✅ Model loaded successfully for evaluation")
+            return model, tokenizer
+
+        except Exception as e:
+            logger.error(f"❌ Failed to load trained model: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
 def initialize_model_for_training(
     model_id: str,
@@ -189,30 +249,30 @@ def initialize_model_for_training(
 ) -> Tuple[PreTrainedModel, PreTrainedTokenizer, LoraConfig]:
     """
     Convenience function to initialize model for training.
-    
+
     Args:
         model_id: Hugging Face model ID
         use_flash_attention: Whether to attempt Flash Attention 2
         max_seq_length: Maximum sequence length for the model
         lora_config: Optional pre-configured LoRA config
-        
+
     Returns:
         Tuple of (model, tokenizer, lora_config)
     """
     setup = ModelSetup()
-    
+
     # Load model and tokenizer
     model, tokenizer = setup.load_model_and_tokenizer(
         model_id,
         use_flash_attention,
         max_seq_length
     )
-    
+
     # Setup chat format
     model, tokenizer = setup.setup_for_chat(model, tokenizer)
-    
+
     # Create LoRA config if not provided
     if lora_config is None:
         lora_config = setup.create_lora_config()
-    
+
     return model, tokenizer, lora_config

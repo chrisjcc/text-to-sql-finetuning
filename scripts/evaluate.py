@@ -51,15 +51,34 @@ class ModelEvaluator:
         """Load the trained model and create a generation pipeline."""
         print(f"Loading trained model from {self.model_path}...")
         model, tokenizer = ModelSetup.load_trained_model(str(self.model_path))
-        self.pipe = pipeline(
-            "text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-            device=0 if torch.cuda.is_available() else -1,
-        )
 
-        print("Model loaded successfully!")
+        # Try to create pipeline with device specification
+        # If it fails (accelerate loaded model), retry without device
+        try:
+            device = 0 if torch.cuda.is_available() else -1
+
+            self.pipe = pipeline(
+                "text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+                device=device
+            )
+            print("Model loaded successfully!")
+        except ValueError as e:
+            if "accelerate" in str(e).lower():
+                # Model was loaded with accelerate, retry without device parameter
+                print("Retrying pipeline creation without device parameter (accelerate detected)...")
+                self.pipe = pipeline(
+                    "text-generation",
+                    model=model,
+                    tokenizer=tokenizer,
+                    torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+                )
+                print("Model loaded successfully!")
+            else:
+                # Different error, re-raise
+                raise
 
     def generate_sql(
         self,
@@ -161,7 +180,7 @@ def main(cfg: DictConfig):
     print("\n" + "=" * 80)
     print("\nLoading test dataset...")
     print("=" * 80)
-    processor = DatasetProcessor(cfg.dataset.dataset_name)
+    processor = DatasetProcessor(cfg.dataset.name)
     test_dataset = processor.load_prepared_dataset(test_dataset_path)
     print(f"Test dataset loaded: {len(test_dataset)} samples")
 
