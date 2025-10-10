@@ -75,7 +75,7 @@ def main(cfg: DictConfig):
     print_trainable_parameters(model)
 
     # Format dataset for training
-    train_dataset = format_dataset_for_training(train_dataset, tokenizer)
+    train_dataset = format_dataset_for_training(train_dataset, tokenizer, max_seq_length=2048)
 
     # Setup trainer
     trainer = ModelTrainer(

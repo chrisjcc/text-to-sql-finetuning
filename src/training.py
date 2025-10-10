@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 def format_dataset_for_training(
     dataset: Dataset,
-    tokenizer: PreTrainedTokenizer
+    tokenizer: PreTrainedTokenizer,
+    max_seq_length: int = 2048,
 ) -> Dataset:
     """
     Format dataset by applying chat template to create text field.
@@ -38,7 +39,8 @@ def format_dataset_for_training(
         """Apply chat template and return as text field"""
         formatted_text = tokenizer.apply_chat_template(
             example["messages"],
-            tokenize=False,
+            tokenize=False,   # don't tokenize here; leave for trainer
+            max_length=max_seq_length,  # truncate to desired length
             add_generation_prompt=False
         )
         return {"text": formatted_text}
@@ -133,7 +135,6 @@ class ModelTrainer:
             report_to=report_to,
             # SFT-specific arguments
             dataset_text_field="text",
-            max_seq_length=self.max_seq_length,
         )
 
     def create_trainer(self, training_args: SFTConfig) -> SFTTrainer:
