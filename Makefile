@@ -22,7 +22,7 @@ install-flash:
 	MAX_JOBS=4 pip install flash-attn --no-build-isolation
 
 setup:
-        @echo "🔧 Creating project directories..."
+	@echo "🔧 Creating project directories..."
 	mkdir -p data logs config
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
