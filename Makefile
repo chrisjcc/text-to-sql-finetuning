@@ -1,18 +1,18 @@
-.PHONY: help install install-flash install-wandb setup prepare-data train train-accelerate train-basic evaluate merge-upload inference clean
+.PHONY: help install install-flash install-wandb setup prepare-data train train-accelerate train-basic evaluate  upload-to-hf inference clean
 
 help:
 	@echo "Available commands:"
 	@echo "  make install           - Install Python dependencies"
 	@echo "  make install-flash     - Install Flash Attention (requires CUDA)"
-	@echo "  make setup            - Setup project (install + create directories)"
-	@echo "  make prepare-data     - Prepare and save datasets"
-	@echo "  make train            - Train (auto-detect accelerate/python)"
-	@echo "  make train-accelerate - Train with accelerate (force)"
-	@echo "  make train-basic      - Train with python (force)"
-	@echo "  make evaluate         - Evaluate the trained model"
-	@echo "  make merge-upload     - Merge LoRA and upload to HuggingFace"
-	@echo "  make inference        - Run interactive inference"
-	@echo "  make clean            - Clean up generated files"
+	@echo "  make setup             - Setup project (install + create directories)"
+	@echo "  make prepare-data      - Prepare and save datasets"
+	@echo "  make train             - Train (auto-detect accelerate/python)"
+	@echo "  make train-accelerate  - Train with accelerate (force)"
+	@echo "  make train-basic       - Train with python (force)"
+	@echo "  make evaluate          - Evaluate the trained model"
+	@echo "  make upload-to-hf      - Merge LoRA and upload to HuggingFace"
+	@echo "  make inference         - Run interactive inference"
+	@echo "  make clean             - Clean up generated files"
 
 install:
 	pip install -r requirements.txt
@@ -60,8 +60,8 @@ evaluate:
 	@python -m scripts.evaluate || { echo "⚠ Evaluation failed."; exit 1; }
 
 
-merge-upload:
-	python -m scripts.merge_and_upload
+ upload-to-hf:
+	python -m scripts.upload_to_hf
 
 inference:
 	python -m scripts.inference --interactive
