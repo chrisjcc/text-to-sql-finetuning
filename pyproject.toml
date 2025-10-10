@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 # Optional dependency groups
-[dependency-groups]
+[project.optional-dependencies]
 # For model training (LoRA, TRL, accelerator, etc.)
 training = [
     "accelerate>=1.10.1,<2.0",
