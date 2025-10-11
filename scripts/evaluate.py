@@ -14,6 +14,7 @@ from typing import Dict, Any
 
 import torch
 from transformers import pipeline
+from transformers.pipelines.pt_utils import KeyDataset
 from datasets import Dataset
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -125,43 +126,63 @@ class ModelEvaluator:
         return generated_sqls
 
     def run_evaluation(self, num_samples: int = 1000, seed: int = 42) -> Dict[str, Any]:
-        """Run evaluation on multiple samples using batching."""
+        """Run evaluation on multiple samples using efficient dataset batching."""
         if self.pipe is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
         print(f"\nEvaluating on {num_samples} samples with batch_size={self.batch_size}...")
         eval_samples = self.test_dataset.shuffle(seed=seed).select(range(num_samples))
 
-        # Prepare all prompts
-        print("Preparing prompts...")
-        prompts = []
-        ground_truths = []
-        for sample in eval_samples:
+        # Prepare dataset with prompts
+        print("Preparing dataset...")
+        def prepare_prompt(example):
             prompt = self.pipe.tokenizer.apply_chat_template(
-                sample["messages"][:2],  # System + user only
+                example["messages"][:2],  # System + user only
                 tokenize=False,
                 add_generation_prompt=True,
             )
-            prompts.append(prompt)
-            ground_truths.append(sample["messages"][2]["content"])
+            return {
+                "prompt": prompt,
+                "ground_truth": example["messages"][2]["content"]
+            }
 
-        # Process in batches
-        print(f"Generating predictions in batches of {self.batch_size}...")
-        all_predictions = []
+        eval_dataset = eval_samples.map(prepare_prompt)
 
-        for i in tqdm(range(0, len(prompts), self.batch_size), desc="Evaluating"):
-            batch_prompts = prompts[i:i + self.batch_size]
-            batch_predictions = self.generate_sql_batch(batch_prompts)
-            all_predictions.extend(batch_predictions)
+        # Use pipeline with dataset for true batching
+        print(f"Generating predictions with dataset batching (batch_size={self.batch_size})...")
+
+        predictions = []
+        ground_truths = []
+
+        # Process using KeyDataset for efficient batching
+        from transformers.pipelines.pt_utils import KeyDataset
+
+        for i, output in enumerate(tqdm(
+            self.pipe(
+                KeyDataset(eval_dataset, "prompt"),
+                max_new_tokens=256,
+                do_sample=True,
+                temperature=0.7,
+                top_k=50,
+                top_p=0.95,
+                batch_size=self.batch_size,
+                return_full_text=False,
+            ),
+            total=len(eval_dataset),
+            desc="Evaluating"
+        )):
+            predictions.append(output[0]["generated_text"].strip())
+            ground_truths.append(eval_dataset[i]["ground_truth"])
 
         # Calculate accuracy
         print("Computing accuracy...")
-        correct = sum(1 for pred, truth in zip(all_predictions, ground_truths) if pred == truth)
+        correct = sum(1 for pred, truth in zip(predictions, ground_truths) if pred == truth)
+
         return {
-            "accuracy": correct / len(all_predictions),
-            "num_samples": len(all_predictions),
+            "accuracy": correct / len(predictions),
+            "num_samples": len(predictions),
             "num_correct": correct,
-            "num_incorrect": len(all_predictions) - correct,
+            "num_incorrect": len(predictions) - correct,
         }
 
     def show_examples(self, num_examples: int = 3):
