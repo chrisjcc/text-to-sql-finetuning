@@ -96,7 +96,7 @@ class ModelEvaluator:
         self,
         prompts: list,
         max_new_tokens: int = 256,
-        temperature: float = 0.7,
+        temperature: float = 0.1,  # Lower temperature for more focused generation
         top_k: int = 50,
         top_p: float = 0.95,
     ) -> list:
@@ -104,10 +104,10 @@ class ModelEvaluator:
         outputs = self.pipe(
             prompts,
             max_new_tokens=max_new_tokens,
-            do_sample=True,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
+            do_sample=False,  # Use greedy decoding for SQL (deterministic)
+            # temperature=temperature,  # Not used with do_sample=False
+            # top_k=top_k,  # Not used with do_sample=False
+            # top_p=top_p,  # Not used with do_sample=False
             eos_token_id=self.pipe.tokenizer.eos_token_id,
             pad_token_id=self.pipe.tokenizer.pad_token_id,
             batch_size=self.batch_size,  # Process in batches
@@ -121,7 +121,16 @@ class ModelEvaluator:
         for i, output in enumerate(outputs):
             # output is a list of dicts, take the first one
             generated_text = output[0]["generated_text"].strip()
-            generated_sqls.append(generated_text)
+
+            # Extract just the SQL query (stop at first complete SQL statement)
+            # Find the first semicolon and take everything before it
+            if ';' in generated_text:
+                sql = generated_text.split(';')[0] + ';'
+            else:
+                # If no semicolon, take first line only
+                sql = generated_text.split('\n')[0].strip()
+
+            generated_sqls.append(sql)
 
         return generated_sqls
 
@@ -155,34 +164,43 @@ class ModelEvaluator:
         ground_truths = []
 
         # Process using KeyDataset for efficient batching
-        from transformers.pipelines.pt_utils import KeyDataset
-
         for i, output in enumerate(tqdm(
             self.pipe(
                 KeyDataset(eval_dataset, "prompt"),
                 max_new_tokens=256,
-                do_sample=True,
-                temperature=0.7,
-                top_k=50,
-                top_p=0.95,
+                do_sample=False,  # Use greedy decoding for SQL (deterministic)
+                # temperature=0.7,  # Not used with do_sample=False
+                # top_k=50,  # Not used with do_sample=False
+                # top_p=0.95,  # Not used with do_sample=False
                 batch_size=self.batch_size,
                 return_full_text=False,
             ),
             total=len(eval_dataset),
             desc="Evaluating"
         )):
-            predictions.append(output[0]["generated_text"].strip())
+
+            generated = output[0]["generated_text"].strip()
+            
+            # Extract just SQL (stop at semicolon or first newline)
+            if ';' in generated:
+                sql = generated.split(';')[0] + ';'
+            else:
+                sql = generated.split('\n')[0].strip()
+            
+            predictions.append(sql)
             ground_truths.append(eval_dataset[i]["ground_truth"])
 
         # Calculate accuracy
         print("Computing accuracy...")
-        correct = sum(1 for pred, truth in zip(predictions, ground_truths) if pred == truth)
+        correct = sum(1 for pred, truth in zip(predictions, ground_truths) if pred.strip() == truth.strip())
 
         return {
             "accuracy": correct / len(predictions),
             "num_samples": len(predictions),
             "num_correct": correct,
             "num_incorrect": len(predictions) - correct,
+            "predictions": predictions[:10],  # Save first 10 for inspection
+            "ground_truths": ground_truths[:10],
         }
 
     def show_examples(self, num_examples: int = 3):
