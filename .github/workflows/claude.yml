@@ -1,3 +1,5 @@
+# NOTE: This workflow uses direct Anthropic API access (requires ANTHROPIC_API_KEY)
+# It does NOT use the Claude GitHub App (which would require CLAUDE_CODE_OAUTH_TOKEN)
 name: Claude Code
 
 on:
