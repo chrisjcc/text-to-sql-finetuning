@@ -50,13 +50,21 @@ SCHEMA:
     def create_conversation(self, sample: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:
         """
         Convert a dataset sample to conversational format.
-        
+
+        The assistant response contains only the SQL query with no trailing
+        explanations, helping the model learn natural stopping behavior at
+        EOS tokens.
+
         Args:
             sample: Raw dataset sample with 'context', 'question', and 'answer' keys
-            
+
         Returns:
             Dictionary with 'messages' key containing conversation history
         """
+        # Ensure the answer is clean SQL only (strip any trailing explanations)
+        # The model should learn to stop cleanly after generating the SQL
+        answer = sample["answer"].strip()
+
         return {
             "messages": [
                 {
@@ -69,7 +77,7 @@ SCHEMA:
                 },
                 {
                     "role": "assistant",
-                    "content": sample["answer"]
+                    "content": answer  # Clean SQL only, no extra text
                 }
             ]
         }
