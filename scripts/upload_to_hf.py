@@ -811,6 +811,15 @@ def upload_adapter_to_hub(
         f.write(model_card)
     print_success(f"Model card created: {readme_path}")
 
+    # Save tokenizer directly in output_dir so HF Hub detects it
+    try:
+        print("Saving tokenizer for adapter...")
+        tokenizer = AutoTokenizer.from_pretrained(cfg.hf.model_id)
+        tokenizer.save_pretrained(output_dir)  # saves alongside adapter weights
+        print_success("Tokenizer saved successfully for adapter")
+    except Exception as e:
+        print_error(f"Failed to save tokenizer: {e}")
+
     # Upload files
     print(f"Uploading adapter files to {repo_id}...")
     try:
