@@ -10,50 +10,76 @@ on:
   pull_request_review:
     types: [submitted]
 
+env:
+  # Centralized configuration - easy to update in one place
+  CLAUDE_MODEL: "claude-sonnet-4-5-20250929"
+  CLAUDE_TRIGGER_PHRASE: "@claude"
+  CLAUDE_ASSIGNEE_TRIGGER: "claude"  # GitHub username to trigger on assignment
+
 jobs:
   claude:
+    # Trigger on @claude mentions OR when the specified user is assigned to an issue
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issues' && github.event.action == 'assigned' && github.event.assignee.login == 'claude') ||
+      (github.event_name == 'issues' && github.event.action == 'opened' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
       issues: write
       id-token: write
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 5  # Consider deeper git history
+          fetch-depth: 5
 
+      - name: Log workflow configuration
+        run: |
+          echo "::group::Claude Code Configuration"
+          echo "::notice::Model: ${{ env.CLAUDE_MODEL }}"
+          echo "::notice::Trigger Phrase: ${{ env.CLAUDE_TRIGGER_PHRASE }}"
+          echo "::notice::Assignee Trigger: ${{ env.CLAUDE_ASSIGNEE_TRIGGER }}"
+          echo "::notice::Triggered by: ${{ github.actor }}"
+          echo "::notice::Event: ${{ github.event_name }}"
+          echo "::notice::Repository: ${{ github.repository }}"
+          echo "::endgroup::"
+      
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }} 
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           
-          # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
-          # model: "claude-opus-4-20250514"
+          # Specify model explicitly for clarity and consistency
+          claude_args: |
+            --model ${{ env.CLAUDE_MODEL }}
           
-          # Optional: Customize the trigger phrase (default: @claude)
-          # trigger_phrase: "/claude"
+          # Customize trigger phrase if needed
+          trigger_phrase: ${{ env.CLAUDE_TRIGGER_PHRASE }}
           
-          # Optional: Trigger when specific user is assigned to an issue
-          # assignee_trigger: "claude-bot"
+          # Enable assignee-based triggering
+          assignee_trigger: ${{ env.CLAUDE_ASSIGNEE_TRIGGER }}
           
           # Optional: Allow Claude to run specific commands
-          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          # Uncomment and customize as needed for your project
+          # claude_args: |
+          #   --model ${{ env.CLAUDE_MODEL }}
+          #   --allowedTools "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          #   --max-turns 10
           
-          # Optional: Add custom instructions for Claude to customize its behavior for your project
-          # custom_instructions: |
-          #   Follow our coding standards
-          #   Ensure all new code has tests
-          #   Use TypeScript for new files
+          # Optional: Add custom system prompt for project-specific behavior
+          # claude_args: |
+          #   --model ${{ env.CLAUDE_MODEL }}
+          #   --system-prompt "Follow our coding standards. Ensure all new code has tests. Use TypeScript for new files."
           
-          # Optional: Custom environment variables for Claude
-          # claude_env: |
-          #   NODE_ENV: test
+      - name: Log completion
+        if: always()
+        run: |
+          echo "::notice::Claude Code workflow completed"
+          echo "::notice::Status: ${{ steps.claude.outcome }}"
