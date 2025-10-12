@@ -33,6 +33,60 @@ from src.utils import (
 )
 
 
+def extract_sql(generated_text: str) -> str:
+    """
+    Extract SQL query from generated text.
+
+    Handles various output formats including:
+    - SQL wrapped in markdown code blocks
+    - Multi-line SQL queries
+    - SQL with trailing explanations
+    - SQL with or without semicolons
+
+    Args:
+        generated_text: Raw generated text from the model
+
+    Returns:
+        Extracted and cleaned SQL query
+    """
+    # Remove markdown code blocks if present
+    text = generated_text.replace('```sql', '').replace('```', '')
+    text = text.strip()
+
+    # Strategy 1: Stop at first semicolon
+    if ';' in text:
+        sql = text.split(';')[0] + ';'
+        return sql.strip()
+
+    # Strategy 2: Stop at common trailing phrases
+    stop_phrases = ['\n\n', 'The ', 'This ', 'Note:', 'Explanation:']
+    for phrase in stop_phrases:
+        if phrase in text:
+            sql = text.split(phrase)[0]
+            return sql.strip()
+
+    # Strategy 3: Default to first line
+    return text.split('\n')[0].strip()
+
+
+def normalize_sql(sql: str) -> str:
+    """
+    Normalize SQL for fair comparison.
+
+    Removes formatting differences that don't affect semantic meaning:
+    - Leading/trailing whitespace
+    - Trailing semicolons
+    - Case differences
+
+    Args:
+        sql: SQL query to normalize
+
+    Returns:
+        Normalized SQL query
+    """
+    return sql.strip().rstrip(';').lower()
+
+
 class ModelEvaluator:
     """Handles model evaluation for text-to-SQL tasks."""
 
@@ -95,41 +149,41 @@ class ModelEvaluator:
     def generate_sql_batch(
         self,
         prompts: list,
-        max_new_tokens: int = 256,
-        temperature: float = 0.1,  # Lower temperature for more focused generation
-        top_k: int = 50,
-        top_p: float = 0.95,
+        max_new_tokens: int = 128,  # SQL queries are usually shorter
     ) -> list:
-        """Generate SQL queries for a batch of prompts."""
+        """
+        Generate SQL queries for a batch of prompts.
+
+        Uses greedy decoding for deterministic SQL generation and applies
+        robust SQL extraction to handle various output formats.
+
+        Args:
+            prompts: List of formatted prompts
+            max_new_tokens: Maximum tokens to generate (default: 128)
+
+        Returns:
+            List of extracted SQL queries
+        """
         outputs = self.pipe(
             prompts,
             max_new_tokens=max_new_tokens,
             do_sample=False,  # Use greedy decoding for SQL (deterministic)
-            # temperature=temperature,  # Not used with do_sample=False
-            # top_k=top_k,  # Not used with do_sample=False
-            # top_p=top_p,  # Not used with do_sample=False
             eos_token_id=self.pipe.tokenizer.eos_token_id,
             pad_token_id=self.pipe.tokenizer.pad_token_id,
             batch_size=self.batch_size,  # Process in batches
             return_full_text=False,  # Only return generated text, not the prompt
         )
 
-        # Extract generated text (remove prompt)
+        # Extract generated SQL using robust extraction logic
         # Pipeline returns: [[{"generated_text": "..."}], [{"generated_text": "..."}], ...]
         # For each prompt, we get a list with one dict (since num_return_sequences=1 by default)
         generated_sqls = []
-        for i, output in enumerate(outputs):
+        for output in outputs:
             # output is a list of dicts, take the first one
             generated_text = output[0]["generated_text"].strip()
 
-            # Extract just the SQL query (stop at first complete SQL statement)
-            # Find the first semicolon and take everything before it
-            if ';' in generated_text:
-                sql = generated_text.split(';')[0] + ';'
-            else:
-                # If no semicolon, take first line only
-                sql = generated_text.split('\n')[0].strip()
-
+            # Use robust SQL extraction helper
+            sql = extract_sql(generated_text)
             generated_sqls.append(sql)
 
         return generated_sqls
@@ -167,11 +221,10 @@ class ModelEvaluator:
         for i, output in enumerate(tqdm(
             self.pipe(
                 KeyDataset(eval_dataset, "prompt"),
-                max_new_tokens=256,
+                max_new_tokens=128,  # SQL queries are usually shorter
                 do_sample=False,  # Use greedy decoding for SQL (deterministic)
-                # temperature=0.7,  # Not used with do_sample=False
-                # top_k=50,  # Not used with do_sample=False
-                # top_p=0.95,  # Not used with do_sample=False
+                eos_token_id=self.pipe.tokenizer.eos_token_id,
+                pad_token_id=self.pipe.tokenizer.pad_token_id,
                 batch_size=self.batch_size,
                 return_full_text=False,
             ),
@@ -180,19 +233,19 @@ class ModelEvaluator:
         )):
 
             generated = output[0]["generated_text"].strip()
-            
-            # Extract just SQL (stop at semicolon or first newline)
-            if ';' in generated:
-                sql = generated.split(';')[0] + ';'
-            else:
-                sql = generated.split('\n')[0].strip()
-            
+
+            # Use robust SQL extraction helper
+            sql = extract_sql(generated)
+
             predictions.append(sql)
             ground_truths.append(eval_dataset[i]["ground_truth"])
 
-        # Calculate accuracy
+        # Calculate accuracy using normalized comparison
         print("Computing accuracy...")
-        correct = sum(1 for pred, truth in zip(predictions, ground_truths) if pred.strip() == truth.strip())
+        correct = sum(
+            1 for pred, truth in zip(predictions, ground_truths)
+            if normalize_sql(pred) == normalize_sql(truth)
+        )
 
         return {
             "accuracy": correct / len(predictions),
