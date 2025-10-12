@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 import os
+from dotenv import load_dotenv
 from huggingface_hub import login
 
 import torch
@@ -17,22 +18,43 @@ def setup_logging(
 ) -> None:
     """
     Setup logging configuration.
-    
+
     Args:
         log_file: Optional path to log file
         level: Logging level
     """
-    handlers = [logging.StreamHandler(sys.stdout)]
-    
+    # Create formatters
+    formatter = logging.Formatter(
+        '[%(asctime)s][%(name)s][%(levelname)s] - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Setup handlers
+    handlers = []
+
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    handlers.append(console_handler)
+
+    # File handler
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_file))
-    
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=handlers
-    )
+        file_handler = logging.FileHandler(log_file, mode='a')
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+
+    # Remove existing handlers to avoid duplicates
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Add our handlers
+    for handler in handlers:
+        root_logger.addHandler(handler)
 
 
 def authenticate_huggingface(token: Optional[str] = None) -> None:

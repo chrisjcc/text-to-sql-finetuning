@@ -4,6 +4,7 @@ Handles dataset loading, processing, conversion, and saving.
 """
 
 import logging
+import sys
 from pathlib import Path
 from typing import Dict, List, Any
 from datasets import load_dataset, Dataset, DatasetDict
@@ -11,9 +12,14 @@ from dotenv import load_dotenv
 import os
 import hydra
 from omegaconf import DictConfig
+from hydra.utils import get_original_cwd
+
+# Add src to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+from src.utils import setup_logging
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load secrets from .env
 load_dotenv()
@@ -89,6 +95,10 @@ def main(cfg: DictConfig):
     Args:
         cfg: DictConfig loaded from Hydra YAMLs
     """
+    # Setup logging - use get_original_cwd() to write to project root
+    log_file = Path(get_original_cwd()) / "logs" / "prepare_data.log"
+    setup_logging(log_file)
+
     processor = DatasetProcessor(cfg.dataset.name)
     total_samples = cfg.dataset.train_samples + cfg.dataset.test_samples
     dataset = processor.prepare_dataset(total_samples=total_samples, test_size=cfg.dataset.test_samples)
