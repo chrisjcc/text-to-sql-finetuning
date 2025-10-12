@@ -811,14 +811,18 @@ def upload_adapter_to_hub(
         f.write(model_card)
     print_success(f"Model card created: {readme_path}")
 
-    # Save tokenizer directly in output_dir so HF Hub detects it
+    # Tokenizer should already be saved by training with special tokens
+    # Verify it exists and is ready for upload
     try:
-        print("Saving tokenizer for adapter...")
-        tokenizer = AutoTokenizer.from_pretrained(cfg.hf.model_id)
-        tokenizer.save_pretrained(output_dir)  # saves alongside adapter weights
-        print_success("Tokenizer saved successfully for adapter")
+        print("Verifying tokenizer in output directory...")
+        tokenizer = AutoTokenizer.from_pretrained(output_dir)
+        print_success(f"Tokenizer verified (vocab size: {len(tokenizer)})")
+        # Check if special tokens are present
+        if hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None:
+            print_success("Chat format special tokens confirmed")
     except Exception as e:
-        print_error(f"Failed to save tokenizer: {e}")
+        print_error(f"Failed to verify tokenizer: {e}")
+        print("Note: Tokenizer should be saved during training with setup_chat_format()")
 
     # Upload files
     print(f"Uploading adapter files to {repo_id}...")
