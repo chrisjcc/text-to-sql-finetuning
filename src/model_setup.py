@@ -201,21 +201,35 @@ class ModelSetup:
             )
             logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
 
-            # Step 3: Load tokenizer from checkpoint
+            # Step 3: Load tokenizer from checkpoint (should include special tokens if saved during training)
             logger.info("Loading tokenizer from checkpoint...")
             tokenizer = AutoTokenizer.from_pretrained(str(model_path))
-            original_vocab_size = len(tokenizer)
-            logger.info(f"✓ Tokenizer loaded (initial vocab size: {original_vocab_size})")
+            tokenizer_vocab_size = len(tokenizer)
+            logger.info(f"✓ Tokenizer loaded (vocab size: {tokenizer_vocab_size})")
 
-            # Step 4: CRITICAL - Apply setup_chat_format to add special tokens
-            # This must match what was done during training
-            logger.info("Applying chat format setup...")
-            model, tokenizer = setup_chat_format(model, tokenizer)
-            new_vocab_size = len(tokenizer)
-            logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
+            # Step 4: Check if special tokens are already present
+            # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
+            has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
 
-            if new_vocab_size != original_vocab_size:
-                logger.info(f"  Added {new_vocab_size - original_vocab_size} special tokens")
+            if has_chat_template and tokenizer_vocab_size > model.config.vocab_size:
+                # Tokenizer already has chat format and additional special tokens
+                logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
+                logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
+
+                # Resize model embeddings to match tokenizer
+                if tokenizer_vocab_size != model.config.vocab_size:
+                    logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
+                    model.resize_token_embeddings(tokenizer_vocab_size)
+                    logger.info("✓ Model embeddings resized")
+            else:
+                # Apply setup_chat_format for backwards compatibility or if special tokens not present
+                logger.info("Applying chat format setup (special tokens not found in tokenizer)...")
+                model, tokenizer = setup_chat_format(model, tokenizer)
+                new_vocab_size = len(tokenizer)
+                logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
+
+                if new_vocab_size != tokenizer_vocab_size:
+                    logger.info(f"  Added {new_vocab_size - tokenizer_vocab_size} special tokens")
 
             # Step 5: Load PEFT adapter
             logger.info(f"Loading LoRA adapter from {model_path}...")
