@@ -20,6 +20,7 @@ from tqdm import tqdm
 from dotenv import load_dotenv
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from hydra.utils import get_original_cwd
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -301,8 +302,9 @@ def main(cfg: DictConfig):
     # Log Hydra config
     print("\nConfiguration:\n", OmegaConf.to_yaml(cfg))
 
-    # Setup logging
-    setup_logging(Path("logs") / "evaluation.log")
+    # Setup logging - use get_original_cwd() to write to project root
+    log_file = Path(get_original_cwd()) / "logs" / "evaluation.log"
+    setup_logging(log_file)
 
     # Resolve paths relative to Hydra's working directory
     model_path = Path(cfg.evaluation.model_path).resolve()
