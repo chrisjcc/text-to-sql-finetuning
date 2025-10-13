@@ -54,6 +54,7 @@ def format_dataset_for_training(
         desc="Applying chat template"
     )
 
+    sample = formatted_dataset[0]['text']
     token_len = len(tokenizer(sample).input_ids)
     logger.info(f"Sample formatted text ({token_len} tokens):\n{sample[:500]}...")
     return formatted_dataset
