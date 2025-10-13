@@ -25,8 +25,13 @@ from hydra.utils import get_original_cwd
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data_preparation import DatasetProcessor
-from src.utils import setup_logging, validate_file_exists, check_gpu_availability, extract_sql, load_model_and_tokenizer
-
+from src.utils import (
+    setup_logging,
+    validate_file_exists
+    check_gpu_availability,
+    load_model_and_tokenizer,
+    extract_sql,
+)
 
 # ----------------------------------------
 # Utility
