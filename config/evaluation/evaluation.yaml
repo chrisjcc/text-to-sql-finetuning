@@ -1,5 +1,19 @@
 # config/evaluation/evaluation.yaml
-num_eval_samples: 1000
-model_path: code-llama-3-1-8b-text-to-sql
-test_dataset_path: data/test_dataset.json
+# Model configuration
+model_path: "code-llama-3-1-8b-text-to-sql "  # "meta-llama/Llama-3.1-8B-Instruct"  # Base model path or HuggingFace ID
+adapter_path: null  # Set to checkpoint path for fine-tuned evaluation
+# adapter_path: "./output/checkpoint-500"  # Example: local adapter
+# adapter_path: "your-username/text2sql-adapter"  # Example: HuggingFace Hub adapter
+
+# Evaluation settings
+num_eval_samples: 1000  # Number of samples to evaluate (use smaller for quick tests)
+
+# Generation parameters
 batch_size: 8  # Adjust based on GPU memory
+temperature: 0.0  # 0.0 = greedy decoding (deterministic), >0.0 = sampling
+max_new_tokens: 128  # Maximum number of tokens to generate
+# Set to true to skip baseline evaluation (faster)
+skip_baseline: false
+num_examples: 3  # Number of example predictions to show
+# Save all predictions to results file
+save_predictions: true
