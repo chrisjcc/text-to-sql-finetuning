@@ -83,7 +83,7 @@ def main(cfg: DictConfig):
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         peft_config=lora_config,
-        output_dir=Path(cfg.training.output_dir).resolve(),
+        output_dir=Path(get_original_cwd()) / cfg.training.output_dir
         max_seq_length=cfg.training.max_seq_length,
     )
 
