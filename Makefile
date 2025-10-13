@@ -59,7 +59,6 @@ evaluate:
 	@echo "📊 Running evaluation..."
 	@python -m scripts.evaluate || { echo "⚠ Evaluation failed."; exit 1; }
 
-
  upload-to-hf:
 	python -m scripts.upload_to_hf
 
