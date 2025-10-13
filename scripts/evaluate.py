@@ -459,6 +459,9 @@ def main(cfg: DictConfig):
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     results_path = results_dir / f"evaluation_results_{timestamp}.json"
+
+    # Add config to results for reproducibility
+    results["config"] = OmegaConf.to_container(cfg, resolve=True)
     
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
