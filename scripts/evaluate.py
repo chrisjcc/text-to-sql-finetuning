@@ -402,7 +402,7 @@ def print_comparative_summary(results: Dict[str, Any]):
 # Main
 # ----------------------------------------
 
-@hydra.main(config_path="../config", config_name="evaluation", version_base=None)
+@hydra.main(config_path="../config", config_name="config", version_base=None)
 def main(cfg: DictConfig):
     """Hydra-based evaluation entry point."""
     load_dotenv()
@@ -412,9 +412,11 @@ def main(cfg: DictConfig):
     log_file = Path(get_original_cwd()) / "logs" / "evaluation.log"
     setup_logging(log_file)
 
-    # Resolve paths
-    model_path = Path(cfg.evaluation.model_path).resolve()
-    test_dataset_path = Path(cfg.evaluation.test_dataset_path).resolve()
+    # Resolve paths using Hydra interpolation
+    model_path = cfg.evaluation.model_path
+
+    # Use dataset config for test path (avoid duplication)
+    test_dataset_path = Path(cfg.dataset.test_dataset_path).resolve()
     validate_file_exists(model_path, "Model directory")
     validate_file_exists(test_dataset_path, "Test dataset")
 
@@ -429,19 +431,19 @@ def main(cfg: DictConfig):
 
     # Create evaluator
     evaluator = ModelEvaluator(
-        model_name_or_path=cfg.evaluation.model_path,
-        adapter_path=getattr(cfg.evaluation, "adapter_path", None),
+        model_name_or_path=model_path,
+        adapter_path=cfg.evaluation.adapter_path,
         test_dataset=test_dataset,
-        batch_size=cfg.evaluation.get("batch_size", 8),
-        temperature=cfg.evaluation.get("temperature", 0.0),
-        skip_baseline=cfg.evaluation.get("skip_baseline", False),
+        batch_size=cfg.evaluation.batch_size,
+        temperature=cfg.evaluation.temperature,
+        skip_baseline=cfg.evaluation.skip_baseline,
     )
 
     # Show examples (load adapter if available, otherwise base model)
-    adapter_for_examples = getattr(cfg.evaluation, "adapter_path", None)
+    adapter_for_examples = cfg.evaluation.adapter_path
     evaluator.load_model(adapter_path=adapter_for_examples)
     model_desc = "fine-tuned model" if adapter_for_examples else "base model"
-    evaluator.show_examples(num_examples=3, model_type=model_desc)
+    evaluator.show_examples(num_examples=cfg.evaluation.num_examples, model_type=model_desc)
 
     # Run comparative evaluation
     print("\n" + "="*80)
@@ -466,15 +468,14 @@ def main(cfg: DictConfig):
     print_comparative_summary(results)
 
     print(f"\n{'='*80}")
-
+    print("EVALUATION COMPLETE")
+    print(f"{'='*80}\n")
+    
     print("\nNote: This evaluation uses exact string matching with whitespace normalization.")
     print("Alternative evaluation methods could include:")
     print("  - Executing-based queries and comparing results")
     print("  - Semantic similarity of SQL queries")
     print("  - Human evaluation of query correctness")
-    
-    print("EVALUATION COMPLETE")
-    print(f"{'='*80}\n")
 
 
 if __name__ == "__main__":
