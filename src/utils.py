@@ -225,3 +225,47 @@ def extract_sql(generated_text: str) -> str:
 
     # Default: return full stripped text
     return text.strip()
+
+def load_model_and_tokenizer(base_model: str, adapter_path: str | None = None):
+    """
+    Load a language model and tokenizer, optionally merging a PEFT (LoRA/QLoRA) adapter.
+
+    If an adapter path is provided, the function will:
+        1. Load the PEFT configuration to determine the correct base model.
+        2. Load the corresponding base model and tokenizer.
+        3. Merge the adapter weights dynamically for inference.
+
+    If no adapter is provided, only the base model is loaded.
+
+    Args:
+        base_model (str): Name or local path of the base pretrained model
+            (e.g., "meta-llama/Meta-Llama-3-8B").
+        adapter_path (Optional[str]): Hugging Face Hub ID or local path of the
+            trained PEFT adapter (e.g., "chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter").
+
+    Returns:
+        Tuple[transformers.PreTrainedModel, transformers.PreTrainedTokenizer]:
+            The loaded model and tokenizer, ready for inference.
+    """
+    try:
+        if adapter_path:
+            print(f"🔹 Loading PEFT adapter from '{adapter_path}'...")
+            # Load PEFT config to locate base model
+            peft_config = PeftConfig.from_pretrained(adapter_path)
+            base_name = peft_config.base_model_name_or_path
+
+            tokenizer = AutoTokenizer.from_pretrained(base_name)
+            base = AutoModelForCausalLM.from_pretrained(base_name, device_map="auto")
+            model = PeftModel.from_pretrained(base, adapter_path)
+
+            print(f"✅ Adapter successfully loaded on top of '{base_name}'")
+        else:
+            print(f"🔹 Loading base model '{base_model}' (no adapter)...")
+            tokenizer = AutoTokenizer.from_pretrained(base_model)
+            model = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
+            print("✅ Base model loaded successfully.")
+    except Exception as e:
+        print(f"❌ Error loading model or tokenizer: {e}")
+        raise
+
+    return model, tokenizer
