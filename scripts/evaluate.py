@@ -7,6 +7,8 @@ Usage:
 """
 
 import sys
+import re
+from random import choice
 from pathlib import Path
 from typing import Dict, Any
 import json
@@ -23,11 +25,8 @@ from hydra.utils import get_original_cwd
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data_preparation import DatasetProcessor
-from src.utils import setup_logging, validate_file_exists, check_gpu_availability
-from scripts.inference_utils import load_model_and_tokenizer, extract_sql
+from src.utils import setup_logging, validate_file_exists, check_gpu_availability, extract_sql, load_model_and_tokenizer
 
-import re
-from random import choice
 
 # ----------------------------------------
 # Utility
