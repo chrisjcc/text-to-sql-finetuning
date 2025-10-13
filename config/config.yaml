@@ -1,8 +1,15 @@
+# ============================================================================
 # config/config.yaml
-
+# ============================================================================
 defaults:
   - hf: hf
   - dataset: dataset
   - wandb: wandb
   - training: training
   - evaluation: evaluation
+  - _self_  # This ensures config.yaml overrides take precedence
+
+# Optional: Add any global settings here
+logging:
+  level: INFO
+  log_dir: logs
