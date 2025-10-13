@@ -98,7 +98,7 @@ def main(cfg: DictConfig):
         max_grad_norm=cfg.training.get("max_grad_norm", 1.0),
         warmup_ratio=cfg.training.get("warmup_ratio", 0.03),
         logging_steps=cfg.training.get("logging_steps", 10),
-        push_to_hub=False,
+        push_to_hub=cfg.upload.push_to_hub,
         report_to=report_to,
     )
 

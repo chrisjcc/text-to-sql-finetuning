@@ -8,6 +8,7 @@ username: chrisjcc
 # Upload configuration
 upload:
   # What to upload
+  push_to_hub: true
   upload_adapter: true
   upload_merged: false  # Set to true to upload merged model (requires significant memory)
   upload_dataset: true

@@ -14,6 +14,9 @@ from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
 from datasets import Dataset
 
+from transformers import set_seed
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +44,7 @@ def format_dataset_for_training(
             example["messages"],
             tokenize=False,   # don't tokenize here; leave for trainer
             max_length=max_seq_length,  # truncate to desired length
-            add_generation_prompt=False
+            add_generation_prompt=True
         )
         return {"text": formatted_text}
 
@@ -51,7 +54,8 @@ def format_dataset_for_training(
         desc="Applying chat template"
     )
 
-    logger.info(f"Sample formatted text:\n{formatted_dataset[0]['text'][:500]}...")
+    token_len = len(tokenizer(sample).input_ids)
+    logger.info(f"Sample formatted text ({token_len} tokens):\n{sample[:500]}...")
     return formatted_dataset
 
 
@@ -95,7 +99,7 @@ class ModelTrainer:
         max_grad_norm: float = 0.3,
         warmup_ratio: float = 0.03,
         logging_steps: int = 10,
-        push_to_hub: bool = True,
+        push_to_hub: bool = False,
         report_to: Optional[str] = "tensorboard",
     ) -> SFTConfig:
         """
@@ -126,6 +130,8 @@ class ModelTrainer:
             logging_steps=logging_steps,
             save_strategy="epoch",
             learning_rate=learning_rate,
+            save_safetensors=True,
+            packing=True,
             bf16=True,
             tf32=True,
             max_grad_norm=max_grad_norm,
@@ -165,7 +171,7 @@ class ModelTrainer:
             logger.error(f"Failed to create trainer: {e}")
             raise
 
-    def train(self, training_args: SFTConfig, resume_from_checkpoint: bool = True) -> None:
+    def train(self, training_args: SFTConfig, resume_from_checkpoint: Optional[str] = None) -> None:
         """
         Train the model.
 
@@ -173,6 +179,7 @@ class ModelTrainer:
             training_args: Training arguments
             resume_from_checkpoint: Whether to resume from latest checkpoint if available
         """
+        set_seed(42)
         logger.info("Starting training")
 
         # Create trainer
@@ -180,7 +187,8 @@ class ModelTrainer:
 
         # Start training
         try:
-            self.trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+            # This ensures training resumes automatically if a checkpoint exists.
+            self.trainer.train(resume_from_checkpoint=resume_from_checkpoint or self.output_dir)
             logger.info("Training completed successfully")
         except Exception as e:
             logger.error(f"Training failed: {e}")
