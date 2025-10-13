@@ -188,10 +188,18 @@ class ModelTrainer:
         # Create trainer
         self.trainer = self.create_trainer(training_args)
 
+        # Only pass a valid path or None
+        checkpoint_path = None
+        if resume_from_checkpoint is True:
+            checkpoint_path = self.output_dir
+        elif isinstance(resume_from_checkpoint, str):
+            checkpoint_path = resume_from_checkpoint
+        # else: start fresh, leave checkpoint_path as None
+
         # Start training
         try:
             # This ensures training resumes automatically if a checkpoint exists.
-            self.trainer.train(resume_from_checkpoint=resume_from_checkpoint or self.output_dir)
+            self.trainer.train(resume_from_checkpoint=checkpoint_path)
             logger.info("Training completed successfully")
         except Exception as e:
             logger.error(f"Training failed: {e}")

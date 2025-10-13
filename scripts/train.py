@@ -77,13 +77,15 @@ def main(cfg: DictConfig):
     # Format dataset for training
     train_dataset = format_dataset_for_training(train_dataset, tokenizer, max_seq_length=2048)
 
+    output_dir = Path(get_original_cwd()) / cfg.training.output_dir
+
     # Setup trainer
     trainer = ModelTrainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         peft_config=lora_config,
-        output_dir=Path(get_original_cwd()) / cfg.training.output_dir,
+        output_dir=output_dir,
         max_seq_length=cfg.training.max_seq_length,
     )
 
