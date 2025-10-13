@@ -47,7 +47,7 @@ train:
 # Force use of accelerate
 train-accelerate:
 	@echo "🚀 Training with accelerate launch..."
-        @accelerate launch -m scripts.train || { echo "⚠ Training with accelerate failed."; exit 1; }
+	@accelerate launch -m scripts.train || { echo "⚠ Training with accelerate failed."; exit 1; }
 
 # Force use of basic python
 train-basic:
