@@ -7,14 +7,11 @@ Usage:
 """
 
 import sys
-import os
 from pathlib import Path
-from random import randint
 from typing import Dict, Any
+import json
 
 import torch
-from transformers import pipeline
-from transformers.pipelines.pt_utils import KeyDataset
 from datasets import Dataset
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -26,337 +23,211 @@ from hydra.utils import get_original_cwd
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data_preparation import DatasetProcessor
-from src.model_setup import ModelSetup
-from src.utils import (
-    setup_logging,
-    validate_file_exists,
-    check_gpu_availability,
-)
+from src.utils import setup_logging, validate_file_exists, check_gpu_availability
+from scripts.inference_utils import load_model_and_tokenizer, extract_sql
 
+import re
+from random import choice
 
-def extract_sql(generated_text: str) -> str:
-    """
-    Extract SQL query from generated text.
-
-    Handles various output formats including:
-    - SQL wrapped in markdown code blocks
-    - Multi-line SQL queries
-    - SQL with trailing explanations
-    - SQL with or without semicolons
-
-    Args:
-        generated_text: Raw generated text from the model
-
-    Returns:
-        Extracted and cleaned SQL query
-    """
-    # Remove markdown code blocks if present
-    text = generated_text.replace('```sql', '').replace('```', '')
-    text = text.strip()
-
-    # Strategy 1: Stop at first semicolon
-    if ';' in text:
-        sql = text.split(';')[0] + ';'
-        return sql.strip()
-
-    # Strategy 2: Stop at common trailing phrases
-    stop_phrases = ['\n\n', 'The ', 'This ', 'Note:', 'Explanation:']
-    for phrase in stop_phrases:
-        if phrase in text:
-            sql = text.split(phrase)[0]
-            return sql.strip()
-
-    # Strategy 3: Default to first line
-    return text.split('\n')[0].strip()
-
+# ----------------------------------------
+# Utility
+# ----------------------------------------
 
 def normalize_sql(sql: str) -> str:
-    """
-    Normalize SQL for fair comparison.
+    """Normalize SQL for fair comparison."""
+    return re.sub(r'\s+', ' ', sql.strip().rstrip(';').lower())
 
-    Removes formatting differences that don't affect semantic meaning:
-    - Leading/trailing whitespace
-    - Trailing semicolons
-    - Case differences
 
-    Args:
-        sql: SQL query to normalize
-
-    Returns:
-        Normalized SQL query
-    """
-    return sql.strip().rstrip(';').lower()
-
+# ----------------------------------------
+# ModelEvaluator
+# ----------------------------------------
 
 class ModelEvaluator:
     """Handles model evaluation for text-to-SQL tasks."""
 
-    def __init__(self, model_path: Path, test_dataset: Dataset, batch_size: int = 8):
+    def __init__(self, model_name_or_path: str, adapter_path: str | None, test_dataset: Dataset, batch_size: int = 8, temperature: float = 0.0):
         """
-        Initialize the evaluator.
+        Initialize evaluator.
 
         Args:
-            model_path: Path to the trained model
-            test_dataset: Test dataset for evaluation
-            batch_size: Batch size for inference
+            model_name_or_path: Base model name or path
+            adapter_path: Optional PEFT adapter path or HF ID
+            test_dataset: Hugging Face Dataset
+            batch_size: Batch size for generation
+            temperature: Sampling temperature for generation (0.0 = greedy)
         """
-        self.model_path = Path(model_path).resolve()
+        self.model_name_or_path = model_name_or_path
+        self.adapter_path = adapter_path
         self.test_dataset = test_dataset
         self.batch_size = batch_size
-        self.pipe = None
+        self.temperature = temperature
+        self.model = None
+        self.tokenizer = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def load_model(self) -> None:
-        """Load the trained model and create a generation pipeline."""
-        print(f"Loading trained model from {self.model_path}...")
-        model, tokenizer = ModelSetup.load_trained_model(str(self.model_path))
+        """Load model and tokenizer with optional adapter."""
+        print(f"Loading model (base: {self.model_name_or_path}, adapter: {self.adapter_path})...")
+        self.model, self.tokenizer = load_model_and_tokenizer(self.model_name_or_path, self.adapter_path)
+        self.model.to(self.device)
+        # Ensure padding side and pad token
+        self.tokenizer.padding_side = "left"
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        print("✅ Model and tokenizer loaded.")
 
-        # CRITICAL: Set padding side to 'left' for decoder-only models
-        tokenizer.padding_side = 'left'
+    # ----------------------------------------
+    # Generation
+    # ----------------------------------------
 
-        # Ensure pad token is set
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-
-        # Try to create pipeline with device specification
-        # If it fails (accelerate loaded model), retry without device
-        try:
-            device = 0 if torch.cuda.is_available() else -1
-
-            self.pipe = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-                device=device,
-                batch_size=self.batch_size,  # Enable batching
+    def generate_sql_batch(self, prompts: list, max_new_tokens: int = 128) -> list:
+        """Generate SQL queries for a batch of prompts."""
+        self.model.eval()
+        inputs = self.tokenizer(prompts, return_tensors="pt", padding=True).to(self.device)
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=self.temperature > 0.0,
+                temperature=self.temperature,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
             )
-            print(f"Model loaded successfully with batch_size={self.batch_size}!")
-        except ValueError as e:
-            if "accelerate" in str(e).lower():
-                # Model was loaded with accelerate, retry without device parameter
-                print("Retrying pipeline creation without device parameter (accelerate detected)...")
-                self.pipe = pipeline(
-                    "text-generation",
-                    model=model,
-                    tokenizer=tokenizer,
-                    torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-                    batch_size=self.batch_size,  # Enable batching
-                )
-                print(f"Model loaded successfully with batch_size={self.batch_size}!")
-            else:
-                # Different error, re-raise
-                raise
+        decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        return [extract_sql(sql) for sql in decoded]
 
-    def generate_sql_batch(
-        self,
-        prompts: list,
-        max_new_tokens: int = 128,  # SQL queries are usually shorter
-    ) -> list:
-        """
-        Generate SQL queries for a batch of prompts.
+    # ----------------------------------------
+    # Evaluation
+    # ----------------------------------------
 
-        Uses greedy decoding for deterministic SQL generation and applies
-        robust SQL extraction to handle various output formats.
-
-        Args:
-            prompts: List of formatted prompts
-            max_new_tokens: Maximum tokens to generate (default: 128)
-
-        Returns:
-            List of extracted SQL queries
-        """
-        outputs = self.pipe(
-            prompts,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,  # Use greedy decoding for SQL (deterministic)
-            eos_token_id=self.pipe.tokenizer.eos_token_id,
-            pad_token_id=self.pipe.tokenizer.pad_token_id,
-            batch_size=self.batch_size,  # Process in batches
-            return_full_text=False,  # Only return generated text, not the prompt
-        )
-
-        # Extract generated SQL using robust extraction logic
-        # Pipeline returns: [[{"generated_text": "..."}], [{"generated_text": "..."}], ...]
-        # For each prompt, we get a list with one dict (since num_return_sequences=1 by default)
-        generated_sqls = []
-        for output in outputs:
-            # output is a list of dicts, take the first one
-            generated_text = output[0]["generated_text"].strip()
-
-            # Use robust SQL extraction helper
-            sql = extract_sql(generated_text)
-            generated_sqls.append(sql)
-
-        return generated_sqls
-
-    def run_evaluation(self, num_samples: int = 1000, seed: int = 42) -> Dict[str, Any]:
-        """Run evaluation on multiple samples using efficient dataset batching."""
-        if self.pipe is None:
+    def run_evaluation(self, num_samples: int = 1000) -> Dict[str, Any]:
+        """Evaluate the model on a subset of the dataset."""
+        if self.model is None or self.tokenizer is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
         print(f"\nEvaluating on {num_samples} samples with batch_size={self.batch_size}...")
-        eval_samples = self.test_dataset.shuffle(seed=seed).select(range(num_samples))
+        eval_samples = self.test_dataset.shuffle(seed=42).select(range(num_samples))
 
-        # Prepare dataset with prompts
-        print("Preparing dataset...")
-        def prepare_prompt(example):
-            prompt = self.pipe.tokenizer.apply_chat_template(
-                example["messages"][:2],  # System + user only
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            return {
-                "prompt": prompt,
-                "ground_truth": example["messages"][2]["content"]
-            }
-
-        eval_dataset = eval_samples.map(prepare_prompt)
-
-        # Use pipeline with dataset for true batching
-        print(f"Generating predictions with dataset batching (batch_size={self.batch_size})...")
-
-        predictions = []
+        # Prepare prompts and ground truths safely
+        prompts = []
         ground_truths = []
+        for ex in eval_samples:
+            # Use system + last user message for safety
+            sys_msg = ex["messages"][0]["content"]
+            user_msg = ex["messages"][-2]["content"]
+            assistant_msg = ex["messages"][-1]["content"]
+            prompt = self.tokenizer.apply_chat_template([{"role":"system","content":sys_msg},{"role":"user","content":user_msg}], tokenize=False, add_generation_prompt=True)
+            prompts.append(prompt)
+            ground_truths.append(assistant_msg)
 
-        # Process using KeyDataset for efficient batching
-        for i, output in enumerate(tqdm(
-            self.pipe(
-                KeyDataset(eval_dataset, "prompt"),
-                max_new_tokens=128,  # SQL queries are usually shorter
-                do_sample=False,  # Use greedy decoding for SQL (deterministic)
-                eos_token_id=self.pipe.tokenizer.eos_token_id,
-                pad_token_id=self.pipe.tokenizer.pad_token_id,
-                batch_size=self.batch_size,
-                return_full_text=False,
-            ),
-            total=len(eval_dataset),
-            desc="Evaluating"
-        )):
+        # Process in batches
+        predictions = []
+        for i in range(0, len(prompts), self.batch_size):
+            batch_prompts = prompts[i:i+self.batch_size]
+            batch_sql = self.generate_sql_batch(batch_prompts)
+            predictions.extend(batch_sql)
 
-            generated = output[0]["generated_text"].strip()
-
-            # Use robust SQL extraction helper
-            sql = extract_sql(generated)
-
-            predictions.append(sql)
-            ground_truths.append(eval_dataset[i]["ground_truth"])
-
-        # Calculate accuracy using normalized comparison
-        print("Computing accuracy...")
-        correct = sum(
-            1 for pred, truth in zip(predictions, ground_truths)
-            if normalize_sql(pred) == normalize_sql(truth)
-        )
+        # Compute accuracy with normalized comparison
+        correct = sum(normalize_sql(p) == normalize_sql(t) for p, t in zip(predictions, ground_truths))
 
         return {
             "accuracy": correct / len(predictions),
             "num_samples": len(predictions),
             "num_correct": correct,
             "num_incorrect": len(predictions) - correct,
-            "predictions": predictions[:10],  # Save first 10 for inspection
+            "predictions": predictions[:10],
             "ground_truths": ground_truths[:10],
         }
 
+    # ----------------------------------------
+    # Examples
+    # ----------------------------------------
+
     def show_examples(self, num_examples: int = 3):
-        """Display example predictions."""
-        if self.pipe is None:
+        """Show a few example predictions."""
+        if self.model is None or self.tokenizer is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
-        print("\n" + "=" * 80)
-        print("Example Predictions")
-        print("=" * 80)
-
-        # Process examples in batch for efficiency
-        samples = [self.test_dataset[randint(0, len(self.test_dataset) - 1)]
-                   for _ in range(num_examples)]
-
+        samples = [choice(self.test_dataset) for _ in range(num_examples)]
         prompts = []
         for sample in samples:
-            prompt = self.pipe.tokenizer.apply_chat_template(
-                sample["messages"][:2],
-                tokenize=False,
-                add_generation_prompt=True,
-            )
+            sys_msg = sample["messages"][0]["content"]
+            user_msg = sample["messages"][-2]["content"]
+            prompt = self.tokenizer.apply_chat_template([{"role":"system","content":sys_msg},{"role":"user","content":user_msg}], tokenize=False, add_generation_prompt=True)
             prompts.append(prompt)
 
-        # Generate all predictions at once
         predictions = self.generate_sql_batch(prompts)
-
-        # Display results
-        for i, (sample, predicted) in enumerate(zip(samples, predictions)):
-            ground_truth = sample["messages"][2]["content"]
-            print(f"\n--- Example {i + 1} ---")
-            print(f"Question: {sample['messages'][1]['content']}")
+        for i, (sample, pred) in enumerate(zip(samples, predictions)):
+            ground_truth = sample["messages"][-1]["content"]
+            print(f"\n--- Example {i+1} ---")
+            print(f"Question: {sample['messages'][-2]['content']}")
             print(f"Ground Truth SQL:\n{ground_truth}")
-            print(f"Predicted SQL:\n{predicted}")
-            print(f"Match: {'✓' if predicted == ground_truth else '✗'}")
-            print("-" * 80)
+            print(f"Predicted SQL:\n{pred}")
+            print(f"Match: {'✓' if normalize_sql(pred)==normalize_sql(ground_truth) else '✗'}")
+            print("-"*80)
 
 
-@hydra.main(config_path="../config", config_name="config", version_base=None)
+# ----------------------------------------
+# Main
+# ----------------------------------------
+
+@hydra.main(config_path="../config", config_name="evaluation", version_base=None)
 def main(cfg: DictConfig):
-    """Main evaluation function using Hydra hierarchical configs."""
-    # Load environment variables (for secrets)
+    """Hydra-based evaluation entry point."""
     load_dotenv()
-
-    # Log Hydra config
     print("\nConfiguration:\n", OmegaConf.to_yaml(cfg))
 
-    # Setup logging - use get_original_cwd() to write to project root
+    # Setup logging
     log_file = Path(get_original_cwd()) / "logs" / "evaluation.log"
     setup_logging(log_file)
 
-    # Resolve paths relative to Hydra's working directory
+    # Resolve paths
     model_path = Path(cfg.evaluation.model_path).resolve()
     test_dataset_path = Path(cfg.evaluation.test_dataset_path).resolve()
-
-    # Ensure files exist
     validate_file_exists(model_path, "Model directory")
     validate_file_exists(test_dataset_path, "Test dataset")
 
-    # Check GPU availability
+    # GPU
     check_gpu_availability()
 
-    # Load test dataset
-    print("\n" + "=" * 80)
+    # Load dataset
     print("\nLoading test dataset...")
-    print("=" * 80)
     processor = DatasetProcessor(cfg.dataset.name)
     test_dataset = processor.load_prepared_dataset(test_dataset_path)
-    print(f"Test dataset loaded: {len(test_dataset)} samples")
+    print(f"Loaded {len(test_dataset)} samples.")
 
-    # Create evaluator with batch size
-    batch_size = cfg.evaluation.get('batch_size', 8)  # Default to 8
+    # Create evaluator
     evaluator = ModelEvaluator(
-        model_path=model_path,
+        model_name_or_path=cfg.evaluation.model_path,
+        adapter_path=getattr(cfg.evaluation, "adapter_path", None),
         test_dataset=test_dataset,
-        batch_size=batch_size
+        batch_size=cfg.evaluation.get("batch_size", 8),
+        temperature=cfg.evaluation.get("temperature", 0.0),
     )
     evaluator.load_model()
-
-    # Show example predictions
     evaluator.show_examples(num_examples=3)
 
-    # Run full evaluation
-    print("\n" + "=" * 80)
-    print("Running full evaluation...")
-    print("=" * 80)
-
     # Run evaluation
+    print("\nRunning full evaluation...")
     results = evaluator.run_evaluation(num_samples=cfg.evaluation.num_eval_samples)
 
-    # Report results
-    print("\n" + "=" * 80)
-    print("Evaluation Results")
-    print("=" * 80)
+    # Save results
+    results_path = Path(get_original_cwd()) / "results" / "evaluation_results.json"
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(results_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\n✅ Evaluation results saved to {results_path}")
+
+    # Report
+    print("\nEvaluation Summary")
+    print("="*80)
     print(f"Accuracy: {results['accuracy']*100:.2f}%")
     print(f"Correct: {results['num_correct']} / {results['num_samples']}")
     print(f"Incorrect: {results['num_incorrect']} / {results['num_samples']}")
-    print("=" * 80)
-
-    print("\nNote: This evaluation uses exact string matching.")
+    print("="*80)
+    print("\nNote: This evaluation uses exact string matching with whitespace normalization.")
     print("Alternative evaluation methods could include:")
-    print("  - Executing queries and comparing results")
+    print("  - Executing-based queries and comparing results")
     print("  - Semantic similarity of SQL queries")
     print("  - Human evaluation of query correctness")
 
