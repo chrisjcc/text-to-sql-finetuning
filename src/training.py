@@ -120,6 +120,8 @@ class ModelTrainer:
             SFTConfig object
         """
         logger.info("Creating SFT configuration")
+        tf32 = torch.cuda.get_device_capability()[0] >= 8  # Only available on NVIDIA Ampere or newer GPUs (e.g. A100, RTX 30xx, H100)
+
         return SFTConfig(
             # Training arguments
             output_dir=self.output_dir,
@@ -134,7 +136,7 @@ class ModelTrainer:
             save_safetensors=True,
             packing=True,
             bf16=True,
-            tf32=True,
+            tf32=tf32,
             max_grad_norm=max_grad_norm,
             warmup_ratio=warmup_ratio,
             lr_scheduler_type="constant",
