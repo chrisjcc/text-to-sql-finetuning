@@ -3,6 +3,7 @@ Utility functions for the text-to-SQL fine-tuning project.
 """
 
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -186,3 +187,41 @@ def get_model_size_mb(model) -> float:
     param_size = sum(p.numel() * p.element_size() for p in model.parameters())
     buffer_size = sum(b.numel() * b.element_size() for b in model.buffers())
     return (param_size + buffer_size) / 1024**2
+
+def extract_sql(generated_text: str) -> str:
+    """
+    Extract a clean SQL query from model output.
+
+    Handles:
+      - Markdown code blocks (```sql, ```SQL, ```)
+      - Multi-line SQL queries
+      - Trailing explanations
+      - SQL with or without semicolons
+
+    Args:
+        generated_text: Raw model output
+
+    Returns:
+        Clean SQL string, preferably ending with a semicolon
+    """
+    if not generated_text:
+        return ""
+
+    # Remove markdown code blocks, ignore case
+    text = re.sub(r'```(?:sql)?', '', generated_text, flags=re.IGNORECASE)
+    text = text.strip()
+
+    # Prefer up to first semicolon if present
+    if ';' in text:
+        sql = text.split(';')[0].strip() + ';'
+        return sql
+
+    # Otherwise, stop at double newline, triple dash, or '###' separators
+    split_patterns = [r'\n\n', r'\n---\n', r'###']
+    for pat in split_patterns:
+        parts = re.split(pat, text)
+        if len(parts) > 1:
+            return parts[0].strip()
+
+    # Default: return full stripped text
+    return text.strip()
