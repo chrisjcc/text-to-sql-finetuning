@@ -100,8 +100,11 @@ class ModelEvaluator:
 
         self.model, self.tokenizer = ModelSetup.load_trained_model(
             model_path=self.base_model_path,
-        adapter_path=adapter_path
+            adapter_path=adapter_path
         )
+        if hasattr(model, "merge_and_unload"):
+            self.model = self.model.merge_and_unload()
+        self.model.eval()
         self.model.to(self.device)
 
         # Ensure padding side and pad token
