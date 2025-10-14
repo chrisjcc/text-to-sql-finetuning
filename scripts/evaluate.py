@@ -98,7 +98,10 @@ class ModelEvaluator:
             del self.model
             torch.cuda.empty_cache()
 
-        self.model, self.tokenizer = ModelSetup.load_trained_model(adapter_path)
+        self.model, self.tokenizer = ModelSetup.load_trained_model(
+            model_path=self.base_model_path,
+        adapter_path=adapter_path
+        )
         self.model.to(self.device)
 
         # Ensure padding side and pad token
