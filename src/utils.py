@@ -165,9 +165,7 @@ def validate_file_exists(file_path: Path, file_description: str = "File") -> Non
         print(f"🔹 Skipping local existence check for remote {file_description}: {file_path}")
         return
 
-    path = Path(file_path.strip())
-
-    if not path.exists():
+    if not file_path.exists():
         raise FileNotFoundError(f"{file_description} not found: {file_path}")
 
 
