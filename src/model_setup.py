@@ -156,6 +156,8 @@ class ModelSetup:
         model_path: str,
         adapter_path: Optional[str] = None,
         device_map: str = "auto",
+        merge_adapter: bool = False,
+        set_eval_mode: bool = False,
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Load a trained PEFT model (adapter + tokenizer) for inference.
@@ -164,6 +166,8 @@ class ModelSetup:
             model_path: Base model path or HuggingFace ID
             adapter_path: Optional path to adapter (local or HuggingFace Hub ID). If None, loads base model only.
             device_map: Device mapping strategy
+            merge_adapter: If True, merge LoRA adapter weights into base model (removes PEFT scaffolding)
+            set_eval_mode: If True, set model to evaluation mode (disables dropout)
 
         Returns:
             Tuple of (model, tokenizer)
@@ -176,7 +180,7 @@ class ModelSetup:
         # Case 1: No adapter - just load base model
         if adapter_path is None:
             logger.info(f"Loading base model (no adapter): {model_path}")
-            
+
             model = AutoModelForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=torch.bfloat16,
@@ -184,9 +188,12 @@ class ModelSetup:
                 trust_remote_code=True,
             )
             logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
-            
+
             tokenizer = AutoTokenizer.from_pretrained(model_path)
-            logger.info(f"✓ Tokenizer loaded (vocab size: {len(tokenizer)})")
+            tokenizer_length = len(tokenizer)
+            logger.info(f"✓ Tokenizer loaded")
+            logger.info(f"  Tokenizer length: {tokenizer_length}")
+            logger.info(f"  Model vocab size: {model.config.vocab_size}")
             
             # Apply chat format for base model
             model, tokenizer = setup_chat_format(model, tokenizer)
@@ -197,7 +204,12 @@ class ModelSetup:
                 tokenizer.pad_token = tokenizer.eos_token
                 model.config.pad_token_id = tokenizer.eos_token_id
                 logger.info("✓ Padding token configured")
-            
+
+            # Set evaluation mode if requested
+            if set_eval_mode:
+                model.eval()
+                logger.info("✓ Model set to evaluation mode")
+
             logger.info("✅ Base model loaded successfully")
             return model, tokenizer
 
@@ -264,7 +276,9 @@ class ModelSetup:
             # Use the original adapter_path (string) for from_pretrained - works for both local and Hub
             tokenizer = AutoTokenizer.from_pretrained(adapter_path)
             tokenizer_vocab_size = len(tokenizer)
-            logger.info(f"✓ Tokenizer loaded (vocab size: {tokenizer_vocab_size})")
+            logger.info(f"✓ Tokenizer loaded")
+            logger.info(f"  Tokenizer length: {tokenizer_vocab_size}")
+            logger.info(f"  Model vocab size: {model.config.vocab_size}")
 
             # Step 4: Check if special tokens are already present
             # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
@@ -300,11 +314,22 @@ class ModelSetup:
             )
             logger.info("✓ Adapter loaded successfully")
 
-            # Step 6: Set padding token if needed
+            # Step 6: Optionally merge adapter into base model
+            if merge_adapter:
+                logger.info("Merging LoRA adapter into base model...")
+                model = model.merge_and_unload()
+                logger.info("✓ Adapter merged successfully (PEFT scaffolding removed)")
+
+            # Step 7: Set padding token if needed
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
                 model.config.pad_token_id = tokenizer.eos_token_id
                 logger.info("✓ Padding token configured")
+
+            # Step 8: Set evaluation mode if requested
+            if set_eval_mode:
+                model.eval()
+                logger.info("✓ Model set to evaluation mode")
 
             logger.info("✅ Model loaded successfully for evaluation")
             return model, tokenizer

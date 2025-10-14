@@ -314,14 +314,14 @@ def main(cfg: DictConfig):
     print("="*80)
 
     try:
+        # For inference, always merge adapter if present and set eval mode
         model, tokenizer = ModelSetup.load_trained_model(
             model_path=model_path,
-            adapter_path=adapter_path
+            adapter_path=adapter_path,
+            merge_adapter=True if adapter_path else False,
+            set_eval_mode=True
         )
-        if hasattr(model, "merge_and_unload"):
-            model = model.merge_and_unload()
-        model.eval()
-        
+
         print(f"✅ Model loaded successfully")
     except Exception as e:
         print(f"❌ Failed to load model: {e}")

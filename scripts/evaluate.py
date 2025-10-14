@@ -58,7 +58,9 @@ class ModelEvaluator:
         test_dataset: Dataset,
         batch_size: int = 8,
         temperature: float = 0.0,
-        skip_baseline: bool = False
+        skip_baseline: bool = False,
+        merge_adapter: bool = True,
+        set_eval_mode: bool = True
     ):
         """
         Initialize evaluator.
@@ -70,6 +72,8 @@ class ModelEvaluator:
             batch_size: Batch size for generation
             temperature: Sampling temperature for generation (0.0 = greedy)
             skip_baseline: If True, skip baseline evaluation
+            merge_adapter: If True, merge LoRA adapter into base model
+            set_eval_mode: If True, set model to evaluation mode
         """
         self.base_model_path = model_name_or_path
         self.adapter_path = adapter_path
@@ -77,6 +81,8 @@ class ModelEvaluator:
         self.batch_size = batch_size
         self.temperature = temperature
         self.skip_baseline = skip_baseline
+        self.merge_adapter = merge_adapter
+        self.set_eval_mode = set_eval_mode
         self.model = None
         self.tokenizer = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -98,13 +104,15 @@ class ModelEvaluator:
             del self.model
             torch.cuda.empty_cache()
 
+        # Determine whether to merge adapter (only for adapter models, not baseline)
+        should_merge = self.merge_adapter and adapter_path is not None
+
         self.model, self.tokenizer = ModelSetup.load_trained_model(
             model_path=self.base_model_path,
-            adapter_path=adapter_path
+            adapter_path=adapter_path,
+            merge_adapter=should_merge,
+            set_eval_mode=self.set_eval_mode
         )
-        if hasattr(model, "merge_and_unload"):
-            self.model = self.model.merge_and_unload()
-        self.model.eval()
         self.model.to(self.device)
 
         # Ensure padding side and pad token
@@ -440,6 +448,8 @@ def main(cfg: DictConfig):
         batch_size=cfg.evaluation.batch_size,
         temperature=cfg.evaluation.temperature,
         skip_baseline=cfg.evaluation.skip_baseline,
+        merge_adapter=cfg.evaluation.get('merge_adapter', True),
+        set_eval_mode=cfg.evaluation.get('set_eval_mode', True),
     )
 
     # Show examples (load adapter if available, otherwise base model)

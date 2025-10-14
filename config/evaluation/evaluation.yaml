@@ -22,3 +22,7 @@ skip_baseline: false  # Set to true to skip baseline evaluation (faster)
 num_examples: 3  # Number of example predictions to display
 # Save all predictions to results file
 save_predictions: true  # Save detailed predictions to JSON
+
+# Adapter merging options
+merge_adapter: true  # Set to true to merge LoRA adapter into base model (recommended for evaluation)
+set_eval_mode: true  # Set to true to enable evaluation mode (disables dropout)
