@@ -32,7 +32,6 @@ from src.utils import (
     setup_logging,
     validate_file_exists,
     check_gpu_availability,
-    load_model_and_tokenizer,
     extract_sql,
 )
 

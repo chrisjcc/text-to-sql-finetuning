@@ -151,109 +151,139 @@ class ModelSetup:
             task_type="CAUSAL_LM",
         )
 
-    @staticmethod
-    def load_trained_model(
-        model_path: str,
-        device_map: str = "auto",
-    ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
-        """
-        Load a trained PEFT model (adapter + tokenizer) for inference.
+@staticmethod
+def load_trained_model(
+    model_path: str,
+    device_map: str = "auto",
+) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+    """
+    Load a trained PEFT model (adapter + tokenizer) for inference.
 
-        Args:
-            model_path: Path to the trained model directory
-            device_map: Device mapping strategy
+    Args:
+        model_path: Path to the trained model directory (local or HuggingFace Hub ID)
+        device_map: Device mapping strategy
 
-        Returns:
-            Tuple of (model, tokenizer)
-        """
-        import json
-        from pathlib import Path
-        from trl import setup_chat_format  # Import here
+    Returns:
+        Tuple of (model, tokenizer)
+    """
+    import json
+    from pathlib import Path
+    from trl import setup_chat_format  # Import here
+    from huggingface_hub import hf_hub_download, list_repo_files
 
-        logger.info(f"Loading trained model from {model_path}")
+    logger.info(f"Loading trained model from {model_path}")
 
-        model_path = Path(model_path)
+    # Determine if this is a local path or HuggingFace Hub ID
+    is_hub_model = False
+    local_path = Path(model_path)
 
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model path does not exist: {model_path}")
-
+    if local_path.exists():
+        # It's a local path
+        logger.info(f"Loading from local path: {model_path}")
+        adapter_config_path = local_path / "adapter_config.json"
+    elif "/" in model_path and not model_path.startswith("./") and not model_path.startswith("../"):
+        # Likely a HuggingFace Hub ID (e.g., "username/model-name")
+        logger.info(f"Detected HuggingFace Hub ID: {model_path}")
         try:
-            # Step 1: Get base model name from adapter config
-            adapter_config_path = model_path / "adapter_config.json"
-            if not adapter_config_path.exists():
-                raise FileNotFoundError(f"adapter_config.json not found in {model_path}")
-
-            with open(adapter_config_path, 'r') as f:
-                adapter_config = json.load(f)
-
-            base_model_name = adapter_config.get('base_model_name_or_path')
-            if not base_model_name:
-                raise ValueError("base_model_name_or_path not found in adapter_config.json")
-
-            logger.info(f"Loading base model: {base_model_name}")
-
-            # Step 2: Load base model
-            model = AutoModelForCausalLM.from_pretrained(
-                base_model_name,
-                torch_dtype=torch.bfloat16,
-                device_map=device_map,
-                trust_remote_code=True,
+            # Verify the repo exists by checking for adapter_config.json
+            list_repo_files(model_path)
+            is_hub_model = True
+            logger.info(f"✓ Model found on HuggingFace Hub")
+            # For Hub models, we'll download the config file to read it
+            adapter_config_path = hf_hub_download(
+                repo_id=model_path,
+                filename="adapter_config.json"
             )
-            logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
-
-            # Step 3: Load tokenizer from checkpoint (should include special tokens if saved during training)
-            logger.info("Loading tokenizer from checkpoint...")
-            tokenizer = AutoTokenizer.from_pretrained(str(model_path))
-            tokenizer_vocab_size = len(tokenizer)
-            logger.info(f"✓ Tokenizer loaded (vocab size: {tokenizer_vocab_size})")
-
-            # Step 4: Check if special tokens are already present
-            # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
-            has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
-
-            if has_chat_template and tokenizer_vocab_size > model.config.vocab_size:
-                # Tokenizer already has chat format and additional special tokens
-                logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
-                logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
-
-                # Resize model embeddings to match tokenizer
-                if tokenizer_vocab_size != model.config.vocab_size:
-                    logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
-                    model.resize_token_embeddings(tokenizer_vocab_size)
-                    logger.info("✓ Model embeddings resized")
-            else:
-                # Apply setup_chat_format for backwards compatibility or if special tokens not present
-                logger.info("Applying chat format setup (special tokens not found in tokenizer)...")
-                model, tokenizer = setup_chat_format(model, tokenizer)
-                new_vocab_size = len(tokenizer)
-                logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
-
-                if new_vocab_size != tokenizer_vocab_size:
-                    logger.info(f"  Added {new_vocab_size - tokenizer_vocab_size} special tokens")
-
-            # Step 5: Load PEFT adapter
-            logger.info(f"Loading LoRA adapter from {model_path}...")
-            model = PeftModel.from_pretrained(
-                model,
-                str(model_path),
-                torch_dtype=torch.bfloat16,
-            )
-            logger.info("✓ Adapter loaded successfully")
-
-            # Step 6: Set padding token if needed
-            if tokenizer.pad_token is None:
-                tokenizer.pad_token = tokenizer.eos_token
-                model.config.pad_token_id = tokenizer.eos_token_id
-                logger.info("✓ Padding token configured")
-
-            logger.info("✅ Model loaded successfully for evaluation")
-            return model, tokenizer
-
         except Exception as e:
-            logger.error(f"❌ Failed to load trained model: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-            raise
+            raise FileNotFoundError(
+                f"Could not access HuggingFace Hub model: {model_path}. "
+                f"Make sure the model exists and you have proper authentication. "
+                f"Error: {e}"
+            )
+    else:
+        raise FileNotFoundError(
+            f"Model path does not exist and is not a valid HuggingFace Hub ID: {model_path}"
+        )
+
+    try:
+        # Step 1: Get base model name from adapter config
+        if not Path(adapter_config_path).exists():
+            raise FileNotFoundError(f"adapter_config.json not found")
+
+        with open(adapter_config_path, 'r') as f:
+            adapter_config = json.load(f)
+
+        base_model_name = adapter_config.get('base_model_name_or_path')
+        if not base_model_name:
+            raise ValueError("base_model_name_or_path not found in adapter_config.json")
+
+        logger.info(f"Loading base model: {base_model_name}")
+
+        # Step 2: Load base model
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            torch_dtype=torch.bfloat16,
+            device_map=device_map,
+            trust_remote_code=True,
+        )
+        logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
+
+        # Step 3: Load tokenizer from checkpoint (should include special tokens if saved during training)
+        logger.info("Loading tokenizer from checkpoint...")
+        # Use the original model_path (string) for from_pretrained - works for both local and Hub
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        tokenizer_vocab_size = len(tokenizer)
+        logger.info(f"✓ Tokenizer loaded (vocab size: {tokenizer_vocab_size})")
+
+        # Step 4: Check if special tokens are already present
+        # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
+        has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
+
+        if has_chat_template and tokenizer_vocab_size > model.config.vocab_size:
+            # Tokenizer already has chat format and additional special tokens
+            logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
+            logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
+
+            # Resize model embeddings to match tokenizer
+            if tokenizer_vocab_size != model.config.vocab_size:
+                logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
+                model.resize_token_embeddings(tokenizer_vocab_size)
+                logger.info("✓ Model embeddings resized")
+        else:
+            # Apply setup_chat_format for backwards compatibility or if special tokens not present
+            logger.info("Applying chat format setup (special tokens not found in tokenizer)...")
+            model, tokenizer = setup_chat_format(model, tokenizer)
+            new_vocab_size = len(tokenizer)
+            logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
+
+            if new_vocab_size != tokenizer_vocab_size:
+                logger.info(f"  Added {new_vocab_size - tokenizer_vocab_size} special tokens")
+
+        # Step 5: Load PEFT adapter
+        logger.info(f"Loading LoRA adapter from {model_path}...")
+        # Use the original model_path (string) - works for both local and Hub
+        model = PeftModel.from_pretrained(
+            model,
+            model_path,  # Use string, not Path object
+            torch_dtype=torch.bfloat16,
+        )
+        logger.info("✓ Adapter loaded successfully")
+
+        # Step 6: Set padding token if needed
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            model.config.pad_token_id = tokenizer.eos_token_id
+            logger.info("✓ Padding token configured")
+
+        logger.info("✅ Model loaded successfully for evaluation")
+        return model, tokenizer
+
+    except Exception as e:
+        logger.error(f"❌ Failed to load trained model: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise
+
 
 def initialize_model_for_training(
     model_id: str,
