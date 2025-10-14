@@ -5,7 +5,7 @@ Model setup module for loading and configuring models for fine-tuning.
 import os
 import json
 import logging
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from transformers import (
