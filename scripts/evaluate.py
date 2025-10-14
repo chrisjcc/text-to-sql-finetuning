@@ -27,6 +27,7 @@ from hydra.utils import get_original_cwd
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data_preparation import DatasetProcessor
+from src.model_setup import ModelSetup
 from src.utils import (
     setup_logging,
     validate_file_exists,
@@ -98,10 +99,7 @@ class ModelEvaluator:
             del self.model
             torch.cuda.empty_cache()
 
-        self.model, self.tokenizer = load_model_and_tokenizer(
-            self.base_model_path,
-            adapter_path
-        )
+        self.model, self.tokenizer = ModelSetup.load_trained_model(adapter_path)
         self.model.to(self.device)
 
         # Ensure padding side and pad token
