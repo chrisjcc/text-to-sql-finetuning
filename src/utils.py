@@ -235,7 +235,7 @@ def extract_sql(generated_text: str) -> str:
 def load_model_and_tokenizer(
     base_model: str,
     adapter_path: Optional[str] = None
-) -> Tuple[transformers.PreTrainedModel, transformers.PreTrainedTokenizer]:
+) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     """
     Load a base model and tokenizer, optionally merging a PEFT (LoRA/QLoRA)  adapter.
 
