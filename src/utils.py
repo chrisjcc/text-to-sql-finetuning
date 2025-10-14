@@ -10,7 +10,7 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 from huggingface_hub import login
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedModel, PreTrainedTokenizer
 from peft import PeftModel, PeftConfig
 
 import torch
@@ -231,43 +231,48 @@ def extract_sql(generated_text: str) -> str:
     # Default: return full stripped text
     return text.strip()
 
-def load_model_and_tokenizer(base_model: str, adapter_path: str | None = None):
+def load_model_and_tokenizer(
+    base_model: str,
+    adapter_path: Optional[str] = None
+) -> Tuple[transformers.PreTrainedModel, transformers.PreTrainedTokenizer]:
     """
-    Load a language model and tokenizer, optionally merging a PEFT (LoRA/QLoRA) adapter.
+    Load a base model and tokenizer, optionally merging a PEFT (LoRA/QLoRA)  adapter.
 
-    If an adapter path is provided, the function will:
-        1. Load the PEFT configuration to determine the correct base model.
-        2. Load the corresponding base model and tokenizer.
-        3. Merge the adapter weights dynamically for inference.
-
-    If no adapter is provided, only the base model is loaded.
+    This function ensures that:
+      - The base model is always loaded from its original pretrained checkpoint.
+      - If an adapter path is provided, it is loaded *on top* of the base model.
+      - Avoids 'size mismatch' errors caused by loading adapter weights as a standalone model.
 
     Args:
         base_model (str): Name or local path of the base pretrained model
             (e.g., "meta-llama/Meta-Llama-3-8B").
-        adapter_path (Optional[str]): Hugging Face Hub ID or local path of the
+        adapter_path (Optional[str]): Optional local path or Hugging Face Hub ID of a PEFT adapter.
             trained PEFT adapter (e.g., "chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter").
-
     Returns:
-        Tuple[transformers.PreTrainedModel, transformers.PreTrainedTokenizer]:
-            The loaded model and tokenizer, ready for inference.
+        (model, tokenizer) Tuple[transformers.PreTrainedModel, transformers.PreTrainedTokenizer]:
+            The fully initialized model and tokenizer, ready for inference.
     """
     try:
         if adapter_path:
-            print(f"🔹 Loading PEFT adapter from '{adapter_path}'...")
-            # Load PEFT config to locate base model
-            peft_config = PeftConfig.from_pretrained(adapter_path)
-            base_name = peft_config.base_model_name_or_path
+            print(f"🔹 Loading base model '{base_model}' for adapter integration...")
+            tokenizer = AutoTokenizer.from_pretrained(base_model)
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                device_map="auto",
+                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32
+            )
 
-            tokenizer = AutoTokenizer.from_pretrained(base_name)
-            base = AutoModelForCausalLM.from_pretrained(base_name, device_map="auto")
-            model = PeftModel.from_pretrained(base, adapter_path)
-
-            print(f"✅ Adapter successfully loaded on top of '{base_name}'")
+            print(f"🔹 Attaching PEFT adapter from '{adapter_path}'...")
+            model = PeftModel.from_pretrained(model, adapter_path)
+            print("✅ Adapter successfully merged with base model.")
         else:
             print(f"🔹 Loading base model '{base_model}' (no adapter)...")
             tokenizer = AutoTokenizer.from_pretrained(base_model)
-            model = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model,
+                device_map="auto",
+                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32
+            )
             print("✅ Base model loaded successfully.")
     except Exception as e:
         print(f"❌ Error loading model or tokenizer: {e}")

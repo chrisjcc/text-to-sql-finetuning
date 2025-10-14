@@ -52,11 +52,11 @@ class ModelEvaluator:
     """Handles model evaluation for text-to-SQL tasks with baseline comparison."""
 
     def __init__(
-        self, 
-        model_name_or_path: str, 
-        adapter_path: Optional[str], 
-        test_dataset: Dataset, 
-        batch_size: int = 8, 
+        self,
+        model_name_or_path: str,
+        adapter_path: Optional[str],
+        test_dataset: Dataset,
+        batch_size: int = 8,
         temperature: float = 0.0,
         skip_baseline: bool = False
     ):
@@ -84,7 +84,7 @@ class ModelEvaluator:
     def load_model(self, adapter_path: Optional[str] = None) -> None:
         """
         Load model and tokenizer with optional adapter.
-        
+
         Args:
             adapter_path: Optional adapter path to load. If None, loads base model only.
         """
@@ -92,23 +92,23 @@ class ModelEvaluator:
         print(f"\n{'='*80}")
         print(f"Loading {model_desc}...")
         print(f"{'='*80}")
-        
+
         # Unload previous model to free memory
         if self.model is not None:
             del self.model
             torch.cuda.empty_cache()
-        
+
         self.model, self.tokenizer = load_model_and_tokenizer(
-            self.base_model_path, 
+            self.base_model_path,
             adapter_path
         )
         self.model.to(self.device)
-        
+
         # Ensure padding side and pad token
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        
+
         print(f"✅ {model_desc.capitalize()} loaded successfully.")
 
     # ----------------------------------------
@@ -119,7 +119,7 @@ class ModelEvaluator:
         """Generate SQL queries for a batch of prompts."""
         self.model.eval()
         inputs = self.tokenizer(prompts, return_tensors="pt", padding=True).to(self.device)
-        
+
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -129,7 +129,7 @@ class ModelEvaluator:
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
-        
+
         decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
         return [extract_sql(sql) for sql in decoded]
 
@@ -138,7 +138,7 @@ class ModelEvaluator:
     # ----------------------------------------
 
     def _evaluate_single_model(
-        self, 
+        self,
         num_samples: int,
         eval_samples: Dataset,
         prompts: list,
@@ -147,14 +147,14 @@ class ModelEvaluator:
     ) -> Dict[str, Any]:
         """
         Evaluate a single model configuration.
-        
+
         Args:
             num_samples: Number of samples to evaluate
             eval_samples: Dataset samples
             prompts: List of prompts
             ground_truths: List of ground truth SQL queries
             model_type: Description of model type (for logging)
-            
+
         Returns:
             Dictionary containing evaluation metrics
         """
@@ -162,7 +162,7 @@ class ModelEvaluator:
             raise ValueError("Model not loaded. Call load_model() first.")
 
         print(f"\nEvaluating {model_type} on {num_samples} samples (batch_size={self.batch_size})...")
-        
+
         # Process in batches with progress bar
         predictions = []
         for i in tqdm(range(0, len(prompts), self.batch_size), desc="Generating predictions"):
@@ -202,17 +202,17 @@ class ModelEvaluator:
     def run_comparative_evaluation(self, num_samples: int = 1000) -> Dict[str, Any]:
         """
         Run evaluation on both baseline and fine-tuned models (if applicable).
-        
+
         Args:
             num_samples: Number of samples to evaluate
-            
+
         Returns:
             Dictionary containing comparative evaluation results
         """
         print(f"\n{'='*80}")
         print("STARTING COMPARATIVE EVALUATION")
         print(f"{'='*80}")
-        
+
         # Prepare evaluation data once
         print(f"\nPreparing {num_samples} evaluation samples...")
         eval_samples = self.test_dataset.shuffle(seed=42).select(range(num_samples))
@@ -224,11 +224,11 @@ class ModelEvaluator:
             sys_msg = ex["messages"][0]["content"]
             user_msg = ex["messages"][-2]["content"]
             assistant_msg = ex["messages"][-1]["content"]
-            
+
             prompt = self.tokenizer.apply_chat_template(
-                [{"role": "system", "content": sys_msg}, 
-                 {"role": "user", "content": user_msg}], 
-                tokenize=False, 
+                [{"role": "system", "content": sys_msg},
+                 {"role": "user", "content": user_msg}],
+                tokenize=False,
                 add_generation_prompt=True
             )
             prompts.append(prompt)
@@ -249,14 +249,14 @@ class ModelEvaluator:
             print(f"\n{'='*80}")
             print("BASELINE EVALUATION (Base Model Without Fine-tuning)")
             print(f"{'='*80}")
-            
+
             self.load_model(adapter_path=None)
             baseline_results = self._evaluate_single_model(
-                num_samples, eval_samples, prompts, ground_truths, 
+                num_samples, eval_samples, prompts, ground_truths,
                 model_type="baseline model"
             )
             results["baseline"] = baseline_results
-            
+
             print(f"\n📊 Baseline Accuracy: {baseline_results['accuracy']*100:.2f}%")
 
         # Evaluate fine-tuned model (if adapter exists)
@@ -264,32 +264,32 @@ class ModelEvaluator:
             print(f"\n{'='*80}")
             print("FINE-TUNED EVALUATION (Model With Adapter)")
             print(f"{'='*80}")
-            
+
             self.load_model(adapter_path=self.adapter_path)
             finetuned_results = self._evaluate_single_model(
-                num_samples, eval_samples, prompts, ground_truths, 
+                num_samples, eval_samples, prompts, ground_truths,
                 model_type="fine-tuned model"
             )
             results["fine_tuned"] = finetuned_results
-            
+
             print(f"\n📊 Fine-tuned Accuracy: {finetuned_results['accuracy']*100:.2f}%")
 
             # Calculate improvement metrics (if baseline was evaluated)
             if "baseline" in results:
                 baseline_acc = results["baseline"]["accuracy"]
                 finetuned_acc = finetuned_results["accuracy"]
-                
+
                 improvement = {
                     "absolute_improvement": finetuned_acc - baseline_acc,
                     "relative_improvement_pct": ((finetuned_acc - baseline_acc) / baseline_acc * 100) if baseline_acc > 0 else 0,
                     "correct_gain": finetuned_results["num_correct"] - results["baseline"]["num_correct"],
                 }
                 results["improvement"] = improvement
-        
+
         elif not self.skip_baseline:
             # Only baseline was evaluated
             print("\n⚠️  No adapter path provided. Only baseline evaluation was performed.")
-        
+
         return results
 
     # ----------------------------------------
@@ -311,19 +311,19 @@ class ModelEvaluator:
             sys_msg = sample["messages"][0]["content"]
             user_msg = sample["messages"][-2]["content"]
             prompt = self.tokenizer.apply_chat_template(
-                [{"role": "system", "content": sys_msg}, 
-                 {"role": "user", "content": user_msg}], 
-                tokenize=False, 
+                [{"role": "system", "content": sys_msg},
+                 {"role": "user", "content": user_msg}],
+                tokenize=False,
                 add_generation_prompt=True
             )
             prompts.append(prompt)
 
         predictions = self.generate_sql_batch(prompts)
-        
+
         for i, (sample, pred) in enumerate(zip(samples, predictions)):
             ground_truth = sample["messages"][-1]["content"]
             match = normalize_sql(pred) == normalize_sql(ground_truth)
-            
+
             print(f"\n--- Example {i+1} ---")
             print(f"Question: {sample['messages'][-2]['content']}")
             print(f"\nGround Truth SQL:\n{ground_truth}")
@@ -341,7 +341,7 @@ def print_comparative_summary(results: Dict[str, Any]):
     print(f"\n{'='*80}")
     print("EVALUATION SUMMARY")
     print(f"{'='*80}")
-    
+
     # Configuration
     config = results["evaluation_config"]
     print(f"\nConfiguration:")
@@ -351,14 +351,14 @@ def print_comparative_summary(results: Dict[str, Any]):
     print(f"  • Base model: {config['base_model']}")
     if config['adapter_path']:
         print(f"  • Adapter: {config['adapter_path']}")
-    
+
     # Results table
     print(f"\n{'-'*80}")
     if "baseline" in results and "fine_tuned" in results:
         baseline = results["baseline"]
         finetuned = results["fine_tuned"]
         improvement = results["improvement"]
-        
+
         print(f"{'Metric':<30} {'Baseline':<20} {'Fine-tuned':<20} {'Δ':<10}")
         print(f"{'-'*80}")
         print(f"{'Accuracy':<30} {baseline['accuracy']*100:>6.2f}% {'':<13} {finetuned['accuracy']*100:>6.2f}% {'':<13} {improvement['absolute_improvement']*100:>+6.2f}%")
@@ -366,14 +366,14 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect'] - baseline['num_incorrect']:>+6}")
         print(f"{'-'*80}")
         print(f"\n💡 Relative Improvement: {improvement['relative_improvement_pct']:+.2f}%")
-        
+
         if improvement['absolute_improvement'] > 0:
             print(f"✅ Fine-tuning improved accuracy by {improvement['absolute_improvement']*100:.2f} percentage points!")
         elif improvement['absolute_improvement'] < 0:
             print(f"⚠️  Fine-tuned model performed worse than baseline by {abs(improvement['absolute_improvement'])*100:.2f} percentage points.")
         else:
             print(f"➖ Fine-tuning showed no change in accuracy.")
-            
+
     elif "baseline" in results:
         baseline = results["baseline"]
         print(f"{'Metric':<30} {'Baseline':<20}")
@@ -381,7 +381,7 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Accuracy':<30} {baseline['accuracy']*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {baseline['num_correct']:>6} / {baseline['num_samples']}")
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6}")
-        
+
     elif "fine_tuned" in results:
         finetuned = results["fine_tuned"]
         print(f"{'Metric':<30} {'Fine-tuned':<20}")
@@ -389,7 +389,7 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Accuracy':<30} {finetuned['accuracy']*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {finetuned['num_correct']:>6} / {finetuned['num_samples']}")
         print(f"{'Incorrect predictions':<30} {finetuned['num_incorrect']:>6}")
-    
+
     print(f"\n{'='*80}")
     print("\nNote: This evaluation uses exact string matching with whitespace normalization.")
     print("Alternative evaluation methods could include:")
@@ -456,13 +456,13 @@ def main(cfg: DictConfig):
     # Save results
     results_dir = Path(get_original_cwd()) / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     results_path = results_dir / f"evaluation_results_{timestamp}.json"
 
     # Add config to results for reproducibility
     results["config"] = OmegaConf.to_container(cfg, resolve=True)
-    
+
     with open(results_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\n💾 Detailed results saved to: {results_path}")
@@ -473,7 +473,7 @@ def main(cfg: DictConfig):
     print(f"\n{'='*80}")
     print("EVALUATION COMPLETE")
     print(f"{'='*80}\n")
-    
+
     print("\nNote: This evaluation uses exact string matching with whitespace normalization.")
     print("Alternative evaluation methods could include:")
     print("  - Executing-based queries and comparing results")
