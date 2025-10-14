@@ -102,8 +102,14 @@ class ModelEvaluator:
             model_path=self.base_model_path,
             adapter_path=adapter_path
         )
-        if hasattr(model, "merge_and_unload"):
+
+        # Merge adapter into base model if it's a PEFT model
+        if hasattr(self.model, "merge_and_unload"):
+            print("🔄 Merging adapter weights into base model...")
             self.model = self.model.merge_and_unload()
+            print("✅ Adapter merged successfully")
+
+        # Set model to evaluation mode
         self.model.eval()
         self.model.to(self.device)
 

@@ -270,12 +270,12 @@ class ModelSetup:
             # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
             has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
 
-            if has_chat_template and tokenizer_vocab_size > model.config.vocab_size:
-                # Tokenizer already has chat format and additional special tokens
+            if has_chat_template:
+                # Tokenizer already has chat format configured from training
                 logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
                 logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
 
-                # Resize model embeddings to match tokenizer
+                # Resize model embeddings to match tokenizer if needed
                 if tokenizer_vocab_size != model.config.vocab_size:
                     logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
                     model.resize_token_embeddings(tokenizer_vocab_size)
