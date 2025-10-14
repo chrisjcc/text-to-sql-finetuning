@@ -59,7 +59,7 @@ text-to-sql-finetuning/
 │   ├── data_preparation.py  # Dataset loading and preprocessing
 │   ├── model_setup.py       # Model and tokenizer initialization
 │   ├── training.py          # Training logic with SFTTrainer
-│   └── utils.py            # Utility functions
+│   └── utils.py             # Utility functions
 ├── scripts/
 │   ├── prepare_data.py      # Data preparation script
 │   ├── train.py            # Training script
@@ -233,8 +233,8 @@ config/
 ├── config.yaml              # Main config (combines all below)
 ├── training/training.yaml   # Training hyperparameters
 ├── dataset/dataset.yaml     # Dataset settings
-├── hf/hf.yaml              # Hugging Face settings
-├── wandb/wandb.yaml        # Weights & Biases settings
+├── hf/hf.yaml               # Hugging Face settings
+├── wandb/wandb.yaml         # Weights & Biases settings
 ├── inference/inference.yaml # Inference parameters
 └── evaluation/evaluation.yaml # Evaluation settings
 ```
