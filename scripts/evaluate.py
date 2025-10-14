@@ -414,10 +414,10 @@ def main(cfg: DictConfig):
 
     # Resolve paths using Hydra interpolation
     model_path = cfg.evaluation.model_path
+    validate_file_exists(model_path, "Model directory")
 
     # Use dataset config for test path (avoid duplication)
     test_dataset_path = Path(cfg.dataset.test_dataset_path).resolve()
-    validate_file_exists(model_path, "Model directory")
     validate_file_exists(test_dataset_path, "Test dataset")
 
     # GPU
