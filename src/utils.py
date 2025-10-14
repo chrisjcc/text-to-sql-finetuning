@@ -156,10 +156,19 @@ def validate_file_exists(file_path: Path, file_description: str = "File") -> Non
     Raises:
         FileNotFoundError: If the file doesn't exist
     """
-    if isinstance(file_path, str):
-        file_path = Path(file_path.strip())
+    # Skip validation for remote Hugging Face repos
+    if isinstance(file_path, str) and (
+        file_path.startswith("http")
+        or "/" in file_path  # covers "org/model" format
+        and not Path(file_path).exists()
+    ):
+        print(f"🔹 Skipping local existence check for remote {file_description}: {file_path}")
+        return
 
-    if not file_path.exists():
+    if isinstance(file_path, str):
+        path = Path(file_path.strip())
+
+    if not path.exists():
         raise FileNotFoundError(f"{file_description} not found: {file_path}")
 
 
