@@ -5,7 +5,7 @@ Model setup module for loading and configuring models for fine-tuning.
 import os
 import json
 import logging
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from transformers import (
@@ -154,13 +154,15 @@ class ModelSetup:
     @staticmethod
     def load_trained_model(
         model_path: str,
+        adapter_path: Optional[str] = None,
         device_map: str = "auto",
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Load a trained PEFT model (adapter + tokenizer) for inference.
 
         Args:
-            model_path: Path to the trained model directory
+            model_path: Base model path or HuggingFace ID
+            adapter_path: Optional path to adapter (local or HuggingFace Hub ID). If None, loads base model only.
             device_map: Device mapping strategy
 
         Returns:
@@ -169,19 +171,75 @@ class ModelSetup:
         import json
         from pathlib import Path
         from trl import setup_chat_format  # Import here
+        from huggingface_hub import hf_hub_download, list_repo_files
 
-        logger.info(f"Loading trained model from {model_path}")
+        # Case 1: No adapter - just load base model
+        if adapter_path is None:
+            logger.info(f"Loading base model (no adapter): {model_path}")
+            
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=torch.bfloat16,
+                device_map=device_map,
+                trust_remote_code=True,
+            )
+            logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
+            
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            logger.info(f"✓ Tokenizer loaded (vocab size: {len(tokenizer)})")
+            
+            # Apply chat format for base model
+            model, tokenizer = setup_chat_format(model, tokenizer)
+            logger.info("✓ Chat format applied")
+            
+            # Set padding token
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+                model.config.pad_token_id = tokenizer.eos_token_id
+                logger.info("✓ Padding token configured")
+            
+            logger.info("✅ Base model loaded successfully")
+            return model, tokenizer
 
-        model_path = Path(model_path)
+        # Case 2: Load adapter model
+        logger.info(f"Loading trained model with adapter from {adapter_path}")
 
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model path does not exist: {model_path}")
+        # Determine if this is a local path or HuggingFace Hub ID
+        is_hub_model = False
+        local_path = Path(adapter_path)
+        
+        if local_path.exists():
+            # It's a local path
+            logger.info(f"Loading from local path: {adapter_path}")
+            adapter_config_path = local_path / "adapter_config.json"
+        elif "/" in adapter_path and not adapter_path.startswith("./") and not adapter_path.startswith("../"):
+            # Likely a HuggingFace Hub ID (e.g., "username/model-name")
+            logger.info(f"Detected HuggingFace Hub ID: {adapter_path}")
+            try:
+                # Verify the repo exists by checking for adapter_config.json
+                list_repo_files(adapter_path)
+                is_hub_model = True
+                logger.info(f"✓ Model found on HuggingFace Hub")
+                # For Hub models, we'll download the config file to read it
+                adapter_config_path = hf_hub_download(
+                    repo_id=adapter_path,
+                    filename="adapter_config.json"
+                )
+            except Exception as e:
+                raise FileNotFoundError(
+                    f"Could not access HuggingFace Hub model: {adapter_path}. "
+                    f"Make sure the model exists and you have proper authentication. "
+                    f"Error: {e}"
+                )
+        else:
+            raise FileNotFoundError(
+                f"Model path does not exist and is not a valid HuggingFace Hub ID: {adapter_path}"
+            )
 
         try:
             # Step 1: Get base model name from adapter config
-            adapter_config_path = model_path / "adapter_config.json"
-            if not adapter_config_path.exists():
-                raise FileNotFoundError(f"adapter_config.json not found in {model_path}")
+            if not Path(adapter_config_path).exists():
+                raise FileNotFoundError(f"adapter_config.json not found")
 
             with open(adapter_config_path, 'r') as f:
                 adapter_config = json.load(f)
@@ -203,7 +261,8 @@ class ModelSetup:
 
             # Step 3: Load tokenizer from checkpoint (should include special tokens if saved during training)
             logger.info("Loading tokenizer from checkpoint...")
-            tokenizer = AutoTokenizer.from_pretrained(str(model_path))
+            # Use the original adapter_path (string) for from_pretrained - works for both local and Hub
+            tokenizer = AutoTokenizer.from_pretrained(adapter_path)
             tokenizer_vocab_size = len(tokenizer)
             logger.info(f"✓ Tokenizer loaded (vocab size: {tokenizer_vocab_size})")
 
@@ -232,10 +291,11 @@ class ModelSetup:
                     logger.info(f"  Added {new_vocab_size - tokenizer_vocab_size} special tokens")
 
             # Step 5: Load PEFT adapter
-            logger.info(f"Loading LoRA adapter from {model_path}...")
+            logger.info(f"Loading LoRA adapter from {adapter_path}...")
+            # Use the original adapter_path (string) - works for both local and Hub
             model = PeftModel.from_pretrained(
                 model,
-                str(model_path),
+                adapter_path,  # Use string, not Path object
                 torch_dtype=torch.bfloat16,
             )
             logger.info("✓ Adapter loaded successfully")
@@ -254,6 +314,7 @@ class ModelSetup:
             import traceback
             logger.error(traceback.format_exc())
             raise
+
 
 def initialize_model_for_training(
     model_id: str,

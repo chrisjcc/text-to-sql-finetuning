@@ -1,0 +1,17 @@
+# ============================================================================
+# config/inference/inference.yaml
+# ============================================================================ 
+# Inference mode: interactive, batch, or single
+mode: interactive    # Options: interactive | batch | single
+
+# Generation parameters
+max_new_tokens: 512
+temperature: 0.0  # 0.0 = greedy (deterministic), >0.0 = sampling
+
+# Single query mode (only used when mode=single)
+question: null  # Example: "What are all the users?"
+context: null   # Example: "CREATE TABLE users (id INT, name TEXT, email TEXT)"
+
+# Batch mode (only used when mode=batch)
+batch_file: null        # Example: "data/test_queries.jsonl"
+output_file: "inference_outputs.jsonl"

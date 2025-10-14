@@ -1,326 +1,371 @@
 """
-Simple inference script for testing the fine-tuned model.
+Inference script for text-to-SQL model using Hydra configuration.
 
 Usage:
-    Interactive mode:
-        python -m scripts.inference \
-          --adapter_path chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter \
-          --interactive
-    Single query:
-        python -m scripts.inference \
-          --adapter_path chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter \
-          --question "List all employees hired after 2020." \
-          --context "CREATE TABLE employees(id INT, name TEXT, hire_date DATE);"
-    Batch inference:
-        python -m scripts.inference \
-          --adapter_path chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter \
-          --batch_file data/test.jsonl \
-          --output_file results.jsonl
+    # Interactive mode
+    python scripts/inference.py inference.mode=interactive
+
+    # Single query mode
+    python scripts/inference.py inference.mode=single inference.question="What are all users?" inference.context="CREATE TABLE users (id INT, name TEXT)"
+
+    # Batch mode
+    python scripts/inference.py inference.mode=batch inference.batch_file=data/test_queries.jsonl inference.output_file=results.jsonl
 """
 
+import sys
 import json
-import argparse
+from pathlib import Path
+from dotenv import load_dotenv
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel, PeftConfig
+import torch
+from omegaconf import DictConfig, OmegaConf
+import hydra
+from hydra.utils import get_original_cwd
 
-from config.config import Config
-from src.utils import (
-    setup_logging,
-    check_gpu_availability,
-    load_model_and_tokenizer,
-    extract_sql,
-)
+# Add src to path
+sys.path.append(str(Path(__file__).parent.parent))
+
+from src.utils import setup_logging, check_gpu_availability, extract_sql
+from src.model_setup import ModelSetup
 
 
-def generate_sql(model, tokenizer, question, context, max_new_tokens=512):
+def generate_sql(model, tokenizer, question, context, max_new_tokens=512, temperature=0.0):
     """
-    Generate an SQL query from a natural-language question and schema context.
+    Generate SQL query from natural language question and database context.
 
     Args:
-        model (transformers.PreTrainedModel): The language model used for inference.
-        tokenizer (transformers.PreTrainedTokenizer): The tokenizer corresponding to the model.
-        question (str): The natural language question to translate into SQL.
-        context (str): The database schema or table context (e.g., CREATE TABLE statements).
-        max_new_tokens (int, optional): The maximum number of tokens to generate. Defaults to 512.
+        model: The loaded language model
+        tokenizer: The tokenizer
+        question: Natural language question
+        context: Database schema (CREATE TABLE statements)
+        max_new_tokens: Maximum tokens to generate
+        temperature: Sampling temperature (0.0 = greedy)
 
     Returns:
-        str: The generated SQL query as a string.
+        Generated SQL query string
     """
-    prompt = f"### Context:\n{context}\n\n### Question:\n{question}\n\n### SQL:"
+    # Construct prompt using chat template if available
+    system_msg = "You are a helpful assistant that converts natural language questions into SQL queries."
+    user_msg = f"### Context:\n{context}\n\n### Question:\n{question}\n\n### SQL:"
+
+    if hasattr(tokenizer, 'chat_template') and tokenizer.chat_template:
+        prompt = tokenizer.apply_chat_template(
+            [{"role": "system", "content": system_msg},
+             {"role": "user", "content": user_msg}],
+            tokenize=False,
+            add_generation_prompt=True
+        )
+    else:
+        prompt = f"{system_msg}\n\n{user_msg}"
+
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=max_new_tokens,
-        do_sample=False,  # Deterministic SQL generation, uses greedy decoding, which is usually preferred
-        pad_token_id=tokenizer.eos_token_id,
-    )
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=temperature > 0.0,
+            temperature=temperature if temperature > 0.0 else None,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
     raw_sql = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return extract_sql(raw_sql) 
+    return extract_sql(raw_sql)
 
 
-def interactive_mode(model, tokenizer):
+def interactive_mode(model, tokenizer, max_new_tokens=512, temperature=0.0):
     """
-    Run an interactive REPL-style interface for text-to-SQL inference.
-
-    Allows users to iteratively provide natural-language questions and optional
-    schema contexts (e.g., CREATE TABLE statements). Supports basic commands
-    to manage the current schema context.
+    Run interactive inference mode where user can input questions.
 
     Commands:
-        /schema <schema> - Set or update the current schema context
+        /schema <schema>  - Set/update the database schema
         /clear            - Clear the current schema
-        /exit             - Exit interactive mode
-
-    Args:
-        model: The language model used for SQL generation.
-        tokenizer: The tokenizer associated with the model.
+        /exit, exit, quit - Exit interactive mode
     """
-    print("\n" + "=" * 80)
-    print("Interactive Text-to-SQL Mode")
-    print("=" * 80)
-    print("Commands:")
-    print("  /schema <schema> - Set or update the database schema")
-    print("  /clear           - Clear the current schema")
-    print("  /exit            - Exit interactive mode")
-    print("=" * 80 + "\n")
+    print("\n" + "="*80)
+    print("INTERACTIVE MODE")
+    print("="*80)
+    print("\nCommands:")
+    print("  /schema <schema>  - Set/update database schema")
+    print("  /clear            - Clear current schema")
+    print("  /exit             - Exit interactive mode")
+    print("\n" + "="*80 + "\n")
 
-    context = ""  # persist schema between questions
+    context = ""
 
     while True:
         try:
             question = input("\nNatural language question: ").strip()
+
             if not question:
                 continue
 
-            # Command handling
             if question.lower() in {"/exit", "exit", "quit"}:
-                print("Goodbye!")
+                print("\nExiting interactive mode.")
                 break
+
             elif question.startswith("/schema "):
                 context = question[len("/schema "):].strip()
-                print("Schema updated.")
+                print("✅ Schema updated.")
                 continue
+
             elif question.startswith("/clear"):
                 context = ""
-                print("Schema cleared.")
+                print("✅ Schema cleared.")
                 continue
 
-            # Ask for schema if none stored
             if not context:
-                context = input("Schema / context (CREATE TABLE...): ").strip()
-                if not context:
-                    print("Warning: empty context. Proceeding without schema context.")
+                context = input("Database schema (CREATE TABLE...): ").strip()
 
-            # Generate SQL
-            sql = generate_sql(model, tokenizer, question, context)
-
-            print("\nGenerated SQL:")
-            print("-" * 80)
-            print(sql)
-            print("-" * 80)
+            print("\nGenerating SQL...")
+            sql = generate_sql(model, tokenizer, question, context, max_new_tokens, temperature)
+            print(f"\nGenerated SQL:\n{'-'*80}\n{sql}\n{'-'*80}")
 
         except KeyboardInterrupt:
-            print("\n\nGoodbye!")
+            print("\n\nExiting interactive mode.")
             break
+
         except Exception as e:
-            print(f"\nError: {e}")
+            print(f"\n❌ Error: {e}")
 
-def single_query_mode(model, tokenizer, question, context):
+
+def single_query_mode(model, tokenizer, question, context, max_new_tokens=512, temperature=0.0):
     """
-    Run inference for a single natural-language question and its schema context.
-
-    This mode generates an SQL query for a single input pair and prints it
-    to the console. It is intended for quick, non-interactive testing or
-    script-based use.
-
-    Args:
-        model: The language model used for SQL generation.
-        tokenizer: The tokenizer associated with the model.
-        question (str): The natural-language question.
-        context (str): The database schema or contextual information
-            (e.g., CREATE TABLE statements).
+    Run inference on a single question-context pair.
     """
-    print("\n" + "=" * 80)
-    print("Single Query Mode")
-    print("=" * 80)
-    print(f"\nQuestion:\n{question}")
-    print(f"\nContext:\n{context if context else '(none)'}")
+    print("\n" + "="*80)
+    print("SINGLE QUERY MODE")
+    print("="*80)
+    print(f"\nQuestion: {question}")
+    print(f"Context: {context[:100]}..." if len(context) > 100 else f"Context: {context}")
     print("\nGenerating SQL...")
 
-    try:
-        sql = generate_sql(model, tokenizer, question, context)
-        print("\nGenerated SQL:")
-        print("-" * 80)
-        print(sql)
-        print("-" * 80)
-    except Exception as e:
-        print(f"\nError during generation: {e}")
+    sql = generate_sql(model, tokenizer, question, context, max_new_tokens, temperature)
 
-def batch_query_mode(model, tokenizer, batch_file, output_file="inference_outputs.jsonl"):
+    print(f"\nGenerated SQL:\n{'-'*80}\n{sql}\n{'-'*80}\n")
+
+
+def parse_batch_example(example):
     """
-    Run batched text-to-SQL inference over a JSONL dataset file.
+    Parse a batch example into question, context, and ground truth SQL.
+    Supports two formats:
+    1. Standard format: {"question": "...", "context": "...", "query": "..."}
+    2. Messages format: {"messages": [{"role": "...", "content": "..."}]}
 
-    Each line in the input file must be a valid JSON object containing:
-        {
-            "question": "<natural-language question>",
-            "context": "<database schema or CREATE TABLE statements>",
-            "query": "<gold SQL query (optional)>"
-        }
-
-    The function will generate SQL predictions for each example and write
-    results to an output JSONL file. Each output line includes:
-        - question
-        - context
-        - pred_sql (model-generated SQL)
-        - gold_sql (if available)
-
-    Args:
-        model: The language model used for SQL generation.
-        tokenizer: The tokenizer associated with the model.
-        batch_file (str): Path to the input JSONL dataset file.
-        output_file (str): Path to save inference results. Defaults to 'inference_outputs.jsonl'.
+    Returns:
+        Tuple of (question, context, ground_truth_sql) or None if invalid
     """
-    results = []
-
-    try:
-        with open(batch_file, "r", encoding="utf-8") as f:
-            lines = [json.loads(line) for line in f if line.strip()]
-    except FileNotFoundError:
-        print(f"Error: Could not find batch file '{batch_file}'.")
-        return
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to parse JSONL file '{batch_file}' — {e}")
-        return
-
-    for example in tqdm(lines, desc="Running batch inference"):
+    # Format 1: Standard format
+    if "question" in example:
         question = example.get("question")
         context = example.get("context", "")
-        gold_sql = example.get("query")
+        ground_truth = example.get("query")
 
-        if not question:
-            print("⚠️  Skipping example with missing 'question' field.")
+        if question:
+            return question, context, ground_truth
+
+    # Format 2: Messages format (from prepared dataset)
+    elif "messages" in example:
+        messages = example.get("messages", [])
+
+        if len(messages) < 2:
+            return None
+
+        # Extract context from system message or user message
+        context = ""
+        question = ""
+        ground_truth = None
+
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+
+            if role == "system":
+                # System message often contains schema/context
+                context = content
+            elif role == "user":
+                # User message contains the question
+                # May also contain context if not in system message
+                question = content
+                # If context is in user message, try to extract it
+                if "### Context:" in content or "CREATE TABLE" in content:
+                    parts = content.split("### Question:")
+                    if len(parts) == 2:
+                        context = parts[0].replace("### Context:", "").strip()
+                        question = parts[1].replace("### SQL:", "").strip()
+                    else:
+                        # Just use the whole thing as question
+                        question = content
+            elif role == "assistant":
+                # Assistant message contains the ground truth SQL
+                ground_truth = content
+
+        if question:
+            return question, context, ground_truth
+
+    return None
+
+
+def batch_query_mode(model, tokenizer, batch_file, output_file="inference_outputs.jsonl",
+                     max_new_tokens=512, temperature=0.0):
+    """
+    Run inference on a batch of questions from a JSON or JSONL file.
+
+    Supports two formats:
+    1. JSONL with {"question": "...", "context": "...", "query": "..."}
+    2. JSON with messages format: {"messages": [{"role": "...", "content": "..."}]}
+    """
+    print("\n" + "="*80)
+    print("BATCH QUERY MODE")
+    print("="*80)
+    print(f"\nInput file: {batch_file}")
+    print(f"Output file: {output_file}")
+
+    results = []
+
+    # Load batch file
+    batch_path = Path(batch_file)
+    if not batch_path.exists():
+        print(f"❌ Error: Batch file not found: {batch_file}")
+        return
+
+    # Determine if it's JSON or JSONL
+    with open(batch_file, "r", encoding="utf-8") as f:
+        first_char = f.read(1)
+        f.seek(0)
+
+        if first_char == '[':
+            # Standard JSON array
+            data = json.load(f)
+            if not isinstance(data, list):
+                print(f"❌ Error: Expected JSON array, got {type(data)}")
+                return
+            examples = data
+        else:
+            # JSONL format
+            examples = [json.loads(line) for line in f if line.strip()]
+
+    print(f"\nLoaded {len(examples)} examples from file")
+    print(f"Processing queries...")
+
+    # Process each example
+    skipped = 0
+    for example in tqdm(examples, desc="Running batch inference"):
+        parsed = parse_batch_example(example)
+
+        if parsed is None:
+            skipped += 1
             continue
 
+        question, context, ground_truth = parsed
+
         try:
-            pred_sql = generate_sql(model, tokenizer, question, context)
+            pred_sql = generate_sql(model, tokenizer, question, context, max_new_tokens, temperature)
         except Exception as e:
-            print(f"Error generating SQL for question '{question[:50]}...': {e}")
+            print(f"\n❌ Error processing question: {e}")
             pred_sql = None
 
         results.append({
             "question": question,
             "context": context,
-            "pred_sql": pred_sql,
-            "gold_sql": gold_sql,
+            "predicted_sql": pred_sql,
+            "ground_truth_sql": ground_truth
         })
 
-    try:
-        with open(output_file, "w", encoding="utf-8") as f:
-            for r in results:
-                f.write(json.dumps(r, ensure_ascii=False) + "\n")
-        print(f"\n✅ Batch inference completed. Results saved to '{output_file}'.")
-    except Exception as e:
-        print(f"Error: Failed to write output file '{output_file}' — {e}")
+    if skipped > 0:
+        print(f"\n⚠️  Skipped {skipped} invalid examples")
+
+    # Save results
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        for r in results:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    print(f"\n✅ Batch inference completed. Results saved to '{output_file}'.")
+    print(f"   Processed: {len(results)} queries")
+    if skipped > 0:
+        print(f"   Skipped: {skipped} invalid examples")
 
 
-def main():
-    """
-    Entry point for the Text-to-SQL inference script.
+@hydra.main(config_path="../config", config_name="config", version_base=None)
+def main(cfg: DictConfig):
+    """Hydra-based inference entry point."""
+    load_dotenv()
+    print("\n📊 Starting inference...")
+    print("\nConfiguration:\n", OmegaConf.to_yaml(cfg))
 
-    Supports three modes:
-        1. Interactive mode (--interactive): REPL-style SQL generation.
-        2. Single-query mode (--question and --context): Generate SQL for one example.
-        3. Batch mode (--batch_file): Process a JSONL dataset file.
+    # Setup logging
+    log_file = Path(get_original_cwd()) / cfg.logging.log_dir / "inference.log"
+    setup_logging(log_file)
 
-    Optionally loads a PEFT (LoRA/QLoRA) adapter on top of a base model
-    for inference, as specified by --adapter_path.
-
-    Command-line Arguments:
-        --base_model     : Base model name or path (default: meta-llama/Meta-Llama-3-8B)
-        --adapter_path   : Hugging Face ID or local path of PEFT adapter
-        --interactive    : Run in interactive text-to-SQL REPL mode
-        --question       : Single NL question (used with --context)
-        --context        : Schema or CREATE TABLE statements for single query
-        --batch_file     : Path to JSONL file for batch inference
-        --output_file    : Path to save batch results (default: inference_outputs.jsonl)
-    """
-    parser = argparse.ArgumentParser(
-        description="Text-to-SQL inference script with optional PEFT adapter support"
-    )
-    parser.add_argument(
-        "--base_model",
-        type=str,
-        default="meta-llama/Meta-Llama-3-8B",
-        help="Base model name or path (used if no adapter is provided)",
-    )
-    parser.add_argument(
-        "--adapter_path",
-        type=str,
-        help="Hugging Face ID or local path of PEFT adapter (e.g., 'chrisjcc/Meta-Llama-3.1-8B-text2sql-adapter')",
-    )
-    parser.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Run in interactive mode",
-    )
-    parser.add_argument(
-        "--question",
-        type=str,
-        help="Single question for single-query mode",
-    )
-    parser.add_argument(
-        "--context",
-        type=str,
-        help="Schema/context for single-query mode",
-    )
-    parser.add_argument(
-        "--batch_file",
-        type=str,
-        help="Path to JSONL file for batch inference",
-    )
-    parser.add_argument(
-        "--output_file",
-        type=str,
-        default="inference_outputs.jsonl",
-        help="Output file path for batch results",
-    )
-
-    args = parser.parse_args()
-
-    # Initialize logging and environment
-    setup_logging()
+    # Check GPU
     check_gpu_availability()
 
-    # Load configuration (optional external config)
-    try:
-        config = Config.load()
-        print("✅ Configuration loaded successfully.")
-    except Exception:
-        config = None
-        print("⚠️  No configuration file found or failed to load; proceeding with CLI args only.")
+    # Load model + tokenizer
+    model_path = cfg.evaluation.model_path
+    adapter_path = cfg.evaluation.adapter_path
 
-    # Load model and tokenizer (adapter-aware)
+    print("\n" + "="*80)
+    model_desc = f"with adapter: {adapter_path}" if adapter_path else "base model only"
+    print(f"Loading model {model_desc}...")
+    print("="*80)
+
     try:
-        model, tokenizer = load_model_and_tokenizer(args.base_model, args.adapter_path)
+        model, tokenizer = ModelSetup.load_trained_model(
+            model_path=model_path,
+            adapter_path=adapter_path
+        )
+        model.eval()
+        print(f"✅ Model loaded successfully")
     except Exception as e:
         print(f"❌ Failed to load model: {e}")
         return
 
-    # Select inference mode
-    if args.interactive:
-        interactive_mode(model, tokenizer)
-    elif args.batch_file:
-        batch_query_mode(model, tokenizer, args.batch_file, args.output_file)
-    elif args.question and args.context:
-        single_query_mode(model, tokenizer, args.question, args.context)
+    # Get inference configuration
+    inference_cfg = cfg.get('inference', {})
+    mode = inference_cfg.get('mode', 'interactive')
+    max_new_tokens = inference_cfg.get('max_new_tokens', cfg.evaluation.max_new_tokens)
+    temperature = inference_cfg.get('temperature', cfg.evaluation.temperature)
+
+    # Run appropriate inference mode
+    if mode == 'interactive':
+        interactive_mode(model, tokenizer, max_new_tokens, temperature)
+
+    elif mode == 'batch':
+        batch_file = inference_cfg.get('batch_file')
+        if not batch_file:
+            print("❌ Error: batch_file must be specified for batch mode")
+            print("Usage: python scripts/inference.py inference.mode=batch inference.batch_file=<path>")
+            return
+
+        output_file = inference_cfg.get('output_file', 'inference_outputs.jsonl')
+        batch_query_mode(model, tokenizer, batch_file, output_file, max_new_tokens, temperature)
+
+    elif mode == 'single':
+        question = inference_cfg.get('question')
+        context = inference_cfg.get('context')
+
+        if not question or not context:
+            print("❌ Error: Both question and context must be specified for single mode")
+            print("Usage: python scripts/inference.py inference.mode=single inference.question='...' inference.context='...'")
+            return
+
+        single_query_mode(model, tokenizer, question, context, max_new_tokens, temperature)
+
     else:
-        parser.print_help()
-        print(
-            "\n⚠️  Please specify one of: "
-            "--interactive, --batch_file, or both --question and --context."
-        )
+        print(f"❌ Unknown mode: {mode}")
+        print("Valid modes: interactive, batch, single")
+        print("\nExamples:")
+        print("  python scripts/inference.py inference.mode=interactive")
+        print("  python scripts/inference.py inference.mode=single inference.question='...' inference.context='...'")
+        print("  python scripts/inference.py inference.mode=batch inference.batch_file=data/test.jsonl")
+
+    print("\n" + "="*80)
+    print("INFERENCE COMPLETE")
+    print("="*80 + "\n")
 
 
 if __name__ == "__main__":
