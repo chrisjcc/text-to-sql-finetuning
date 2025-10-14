@@ -12,10 +12,15 @@ Fine-tune a language model to generate SQL queries based on natural language ins
 ## 📋 Features
 
 - **Modular Architecture**: Clean separation of concerns with dedicated modules
-- **Environment-based Configuration**: Secure credential management with dotenv
+- **Hydra Configuration**: Flexible, hierarchical configuration management with YAML files
+- **Environment-based Secrets**: Secure credential management with dotenv
 - **Production Ready**: Error handling, logging, and validation
-- **Efficient Training**: QLoRA with 4-bit quantization and Flash Attention
+- **Efficient Training**: QLoRA with 4-bit quantization and Flash Attention 2
 - **Comprehensive Evaluation**: Multiple evaluation metrics and example outputs
+- **Makefile Support**: Convenient commands for common tasks
+- **Automated Setup**: One-command development environment setup
+- **Interactive Inference**: Real-time SQL generation from natural language
+- **Hub Integration**: Easy model upload to Hugging Face Hub
 
 ## 🏗️ Project Structure
 
@@ -24,9 +29,31 @@ text-to-sql-finetuning/
 ├── .env.example              # Example environment variables
 ├── .gitignore               # Git ignore file
 ├── requirements.txt         # Python dependencies
+├── pyproject.toml           # Modern Python packaging configuration
+├── environment.yml          # Conda environment specification
+├── Makefile                 # Convenient commands for common tasks
+├── setup_dev_env.sh        # Automated development environment setup
 ├── README.md               # This file
-├── config/
-│   └── config.py           # Configuration management
+├── CONTRIBUTING.md         # Contribution guidelines
+├── DEPLOYMENT.md           # Deployment strategies and guides
+├── CHANGELOG.md            # Version history and changes
+├── LICENSE                 # Apache-2.0 license
+├── config/                 # Hydra-based configuration
+│   ├── config.yaml         # Main configuration file
+│   ├── config.py           # Configuration loading example
+│   ├── __init__.py
+│   ├── training/
+│   │   └── training.yaml   # Training hyperparameters
+│   ├── dataset/
+│   │   └── dataset.yaml    # Dataset configuration
+│   ├── hf/
+│   │   └── hf.yaml         # Hugging Face settings
+│   ├── wandb/
+│   │   └── wandb.yaml      # Weights & Biases configuration
+│   ├── inference/
+│   │   └── inference.yaml  # Inference settings
+│   └── evaluation/
+│       └── evaluation.yaml # Evaluation parameters
 ├── src/
 │   ├── __init__.py
 │   ├── data_preparation.py  # Dataset loading and preprocessing
@@ -36,23 +63,53 @@ text-to-sql-finetuning/
 ├── scripts/
 │   ├── prepare_data.py      # Data preparation script
 │   ├── train.py            # Training script
-│   └── evaluate.py         # Evaluation script
-└── data/                   # Dataset storage (created automatically)
+│   ├── evaluate.py         # Evaluation script
+│   ├── inference.py        # Interactive inference script
+│   └── upload_to_hf.py     # Upload model/adapter to Hugging Face Hub
+├── data/                   # Dataset storage (created automatically)
+└── logs/                   # Training and evaluation logs
 ```
 
 ## 🚀 Quick Start
 
 ### 1. Installation
 
+#### Option A: Automated Setup (Recommended)
+
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/chrisjcc/text-to-sql-finetuning.git
+cd text-to-sql-finetuning
+
+# Run automated setup script (installs Miniconda, creates environment, installs dependencies)
+bash setup_dev_env.sh
+```
+
+#### Option B: Manual Setup with Make
+
+```bash
+# Clone the repository
+git clone https://github.com/chrisjcc/text-to-sql-finetuning.git
+cd text-to-sql-finetuning
+
+# Install dependencies and setup project
+make setup
+
+# Optional: Install Flash Attention (requires CUDA compute capability >= 8.0)
+make install-flash
+```
+
+#### Option C: Traditional pip Install
+
+```bash
+# Clone the repository
+git clone https://github.com/chrisjcc/text-to-sql-finetuning.git
 cd text-to-sql-finetuning
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Install Flash Attention (requires CUDA compute capability >= 8.0)
+# Optional: Install Flash Attention (requires CUDA compute capability >= 8.0)
 pip install ninja packaging
 MAX_JOBS=4 pip install flash-attn --no-build-isolation
 ```
@@ -74,7 +131,11 @@ HF_TOKEN=your_huggingface_token_here
 ### 3. Prepare Dataset
 
 ```bash
-python scripts/prepare_data.py
+# Using Make (recommended)
+make prepare-data
+
+# Or directly with Python
+python -m scripts.prepare_data
 ```
 
 This will:
@@ -86,88 +147,143 @@ This will:
 ### 4. Train Model
 
 ```bash
-python scripts/train.py
+# Using Make (auto-detects accelerate or python)
+make train
+
+# Or force specific method
+make train-accelerate  # Use accelerate launch
+make train-basic      # Use python -m
+
+# Or directly with Python
+python -m scripts.train
+
+# Or with accelerate
+accelerate launch -m scripts.train
 ```
 
-Training options:
-- `training.resume_from_checkpoint=false`: start fresh without resuming from checkpoint
-- `training.flash_attention=false`: disable Flash Attention 2 (fallback to SDPA)
+Training options (Hydra overrides):
+- `training.resume_from_checkpoint=true`: Resume from last checkpoint
+- `training.num_train_epochs=5`: Change number of epochs
+- `training.learning_rate=1e-4`: Adjust learning rate
 - Example:
   ```bash
-  python scripts/train.py training.resume_from_checkpoint=true training.flash_attention=false
+  python -m scripts.train training.resume_from_checkpoint=true training.num_train_epochs=5
   ```
 
-Training configuration:
+Training configuration (see `config/training/training.yaml`):
 - Model: Meta-Llama-3.1-8B
 - Quantization: 4-bit with QLoRA
-- Attention: Flash Attention 2 (if supported)
-- LoRA rank: 256
+- Attention: Flash Attention 2 (if supported, falls back to SDPA)
+- LoRA rank: 8
+- LoRA alpha: 16
 - Training epochs: 3
 - Expected time: ~2 hours on g6.2xlarge
 
 ### 5. Evaluate Model
 
 ```bash
-python scripts/evaluate.py
+# Using Make
+make evaluate
+
+# Or directly with Python
+python -m scripts.evaluate
 ```
 
 This will:
 - Load the fine-tuned model
 - Show example predictions
-- Evaluate on 1000 test samples
+- Evaluate on test samples
 - Report accuracy metrics
 
-### 6. Merge and Upload (Optional)
+### 6. Interactive Inference
 
 ```bash
-# Merge LoRA adapter with base model and upload to Hub
-python scripts/merge_and_upload.py
+# Using Make
+make inference
 
-# Upload adapter only (lightweight)
-python scripts/merge_and_upload.py --skip-merge
+# Or directly with Python
+python -m scripts.inference --interactive
+```
 
-# Merge only, don't upload
-python scripts/merge_and_upload.py --skip-upload
+### 7. Upload to Hugging Face Hub (Optional)
 
-# Create private repository
-python scripts/merge_and_upload.py --private
+```bash
+# Using Make
+make upload-to-hf
+
+# Or directly with Python
+python -m scripts.upload_to_hf
+
+# Upload options (use Hydra overrides)
+python -m scripts.upload_to_hf skip_merge=true    # Upload adapter only (lightweight)
+python -m scripts.upload_to_hf skip_upload=true   # Merge only, don't upload
+python -m scripts.upload_to_hf private=true       # Create private repository
 ```
 
 Note: Merging requires significant memory (>30GB). If you encounter OOM errors, upload just the adapter.
 
 ## ⚙️ Configuration
 
-All configuration is managed through environment variables in the `.env` file:
+This project uses **Hydra** for configuration management. Configuration files are organized in the `config/` directory:
 
-### Hugging Face Settings
+### Configuration Structure
+
+```
+config/
+├── config.yaml              # Main config (combines all below)
+├── training/training.yaml   # Training hyperparameters
+├── dataset/dataset.yaml     # Dataset settings
+├── hf/hf.yaml              # Hugging Face settings
+├── wandb/wandb.yaml        # Weights & Biases settings
+├── inference/inference.yaml # Inference parameters
+└── evaluation/evaluation.yaml # Evaluation settings
+```
+
+### Environment Variables (.env file)
+
+Sensitive credentials are stored in `.env`:
+
 ```bash
+# Hugging Face (Required)
 HF_TOKEN=your_token_here
-HF_MODEL_ID=meta-llama/Meta-Llama-3.1-8B
 HF_USERNAME=your_hf_username  # Required for uploading to Hub
-```
 
-### Weights & Biases (Optional)
-```bash
+# Weights & Biases (Optional)
 WANDB_API_KEY=your_wandb_key_here  # Optional: for experiment tracking
-WANDB_PROJECT=text-to-sql-finetuning
 ```
 
-### Training Parameters
+### Modifying Configuration
+
+You can override any configuration parameter using Hydra's command-line syntax:
+
 ```bash
-OUTPUT_DIR=code-llama-3-1-8b-text-to-sql
-NUM_TRAIN_EPOCHS=3
-PER_DEVICE_TRAIN_BATCH_SIZE=1
-GRADIENT_ACCUMULATION_STEPS=8
-LEARNING_RATE=2e-4
-MAX_SEQ_LENGTH=2048
+# Override training parameters
+python -m scripts.train training.num_train_epochs=5 training.learning_rate=1e-4
+
+# Override dataset parameters
+python -m scripts.train dataset.train_samples=20000 dataset.test_samples=5000
+
+# Override multiple parameters
+python -m scripts.train training.per_device_train_batch_size=2 training.lora_r=16
 ```
 
-### Dataset Configuration
-```bash
-DATASET_NAME=b-mc2/sql-create-context
-TRAIN_SAMPLES=10000
-TEST_SAMPLES=2500
-```
+### Key Configuration Parameters
+
+**Training** (`config/training/training.yaml`):
+- `output_dir`: Directory for model checkpoints
+- `num_train_epochs`: Number of training epochs (default: 3)
+- `per_device_train_batch_size`: Batch size per device (default: 1)
+- `gradient_accumulation_steps`: Gradient accumulation (default: 8)
+- `learning_rate`: Learning rate (default: 2e-4)
+- `max_seq_length`: Maximum sequence length (default: 2048)
+- `lora_r`: LoRA rank (default: 8)
+- `lora_alpha`: LoRA alpha (default: 16)
+- `lora_dropout`: LoRA dropout (default: 0.05)
+
+**Dataset** (`config/dataset/dataset.yaml`):
+- `name`: HuggingFace dataset name (default: b-mc2/sql-create-context)
+- `train_samples`: Number of training samples (default: 10000)
+- `test_samples`: Number of test samples (default: 2500)
 
 ## 📊 Model Architecture
 
@@ -177,8 +293,8 @@ TEST_SAMPLES=2500
 - **Attention**: Flash Attention 2 for efficient training
 
 ### LoRA Configuration
-- **Rank (r)**: 256
-- **Alpha**: 128
+- **Rank (r)**: 8 (configurable in `config/training/training.yaml`)
+- **Alpha**: 16
 - **Dropout**: 0.05
 - **Target modules**: all-linear layers
 
@@ -198,30 +314,55 @@ Based on the original implementation:
 
 ## 🔧 Advanced Usage
 
+### Using Makefile Commands
+
+The project includes a `Makefile` for convenience:
+
+```bash
+make help              # Show all available commands
+make setup             # Initial project setup
+make prepare-data      # Prepare datasets
+make train             # Train model (auto-detects accelerate)
+make train-accelerate  # Force use accelerate
+make train-basic       # Force use python
+make evaluate          # Evaluate trained model
+make inference         # Run interactive inference
+make upload-to-hf      # Upload to Hugging Face Hub
+make clean             # Clean generated files
+```
+
 ### Custom Dataset
 
-Modify `src/data_preparation.py` to use your own dataset:
+Modify the dataset configuration or pass overrides:
 
-```python
-processor = DatasetProcessor("your/dataset/name")
+```bash
+# Override dataset name
+python -m scripts.train dataset.name=your/dataset/name
+
+# Or edit config/dataset/dataset.yaml directly
 ```
 
 ### Training with Different Models
 
-Update `.env` to use alternative models:
+Update `config/hf/hf.yaml` or use environment variable:
 
 ```bash
+# In .env file
 HF_MODEL_ID=mistralai/Mistral-7B-v0.1
+
+# Or override via command line
+python -m scripts.train hf.model_id=mistralai/Mistral-7B-v0.1
 ```
 
 ### Adjusting LoRA Parameters
 
-Modify `config/config.py` in the `TrainingConfig` class:
+Modify `config/training/training.yaml` or use Hydra overrides:
 
-```python
-lora_alpha: int = 128
-lora_dropout: float = 0.05
-lora_r: int = 256
+```bash
+# Via command line
+python -m scripts.train training.lora_r=16 training.lora_alpha=32 training.lora_dropout=0.1
+
+# Or edit config/training/training.yaml directly
 ```
 
 ## 📝 Logging
@@ -247,20 +388,16 @@ For more robust evaluation, consider:
 
 ## 🚀 Deployment
 
-### Using Hugging Face Inference Endpoints
+For detailed deployment strategies, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-1. Push your model to Hugging Face Hub (set `push_to_hub=True` in training)
-2. Create an Inference Endpoint in Hugging Face
-3. Use the API for production inference
-
-### Local Deployment
+### Quick Local Deployment
 
 ```python
 from transformers import pipeline
 
 pipe = pipeline(
     "text-generation",
-    model="./code-llama-3-1-8b-text-to-sql"
+    model="./meta-llama-3-1-8B-text-to-sql-adapter"
 )
 
 # Generate SQL
@@ -270,6 +407,15 @@ messages = [
 ]
 result = pipe(messages)
 ```
+
+### Deployment Options
+
+- **Local Deployment**: Run inference on your own hardware
+- **Hugging Face Inference Endpoints**: Managed API endpoints
+- **Docker Deployment**: Containerized deployment
+- **API Server**: FastAPI-based REST API
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete guides on each option.
 
 ## 🔒 Security
 
@@ -287,17 +433,17 @@ If Flash Attention installation fails:
 # Check compute capability
 python -c "import torch; print(torch.cuda.get_device_capability())"
 
-# If < 8.0, disable Flash Attention in train.py
-use_flash_attention = False
+# If < 8.0, the code will automatically fall back to SDPA
+# No manual configuration needed
 ```
 
 ### Out of Memory
 
-Reduce batch size or sequence length in `.env`:
+Reduce batch size or sequence length in `config/training/training.yaml` or via overrides:
 ```bash
-PER_DEVICE_TRAIN_BATCH_SIZE=1
-GRADIENT_ACCUMULATION_STEPS=16
-MAX_SEQ_LENGTH=1024
+python -m scripts.train training.per_device_train_batch_size=1 \
+  training.gradient_accumulation_steps=16 \
+  training.max_seq_length=1024
 ```
 
 ### Dataset Download Issues
@@ -305,6 +451,18 @@ MAX_SEQ_LENGTH=1024
 Ensure you have Hugging Face access:
 ```bash
 huggingface-cli login
+# Or set HF_TOKEN in .env file
+```
+
+### Hydra Configuration Errors
+
+If you encounter Hydra-related errors:
+```bash
+# Clear Hydra cache
+rm -rf outputs/ .hydra/
+
+# Check config syntax
+python -c "from omegaconf import OmegaConf; OmegaConf.load('config/config.yaml')"
 ```
 
 ## 📚 References
@@ -313,8 +471,18 @@ huggingface-cli login
 - [Flash Attention](https://github.com/Dao-AILab/flash-attention)
 - [TRL Documentation](https://huggingface.co/docs/trl)
 - [PEFT Documentation](https://huggingface.co/docs/peft)
+- [Hydra Documentation](https://hydra.cc/docs/intro/)
 
 ## ⚠️ Important Notes
+
+### Configuration Management with Hydra
+
+This project uses **Hydra** for flexible configuration management:
+
+- All configuration is split into modular YAML files in the `config/` directory
+- Override any parameter via command line: `python -m scripts.train training.learning_rate=1e-4`
+- Sensitive credentials are stored in `.env` file, not in config files
+- Hydra outputs are saved to `outputs/` directory (can be excluded from version control)
 
 ### API Changes in Latest TRL
 
@@ -343,9 +511,10 @@ This codebase uses the **latest TRL API** which requires:
        attn_implementation = "sdpa"
    ```
 
-3. **Resume from checkpoint**: Supports automatic checkpoint resuming
+3. **Resume from checkpoint**: Supports automatic checkpoint resuming via configuration
    ```python
-   trainer.train(resume_from_checkpoint=True)
+   # Set in config/training/training.yaml or via override
+   training.resume_from_checkpoint=true
    ```
 
 These changes ensure compatibility with the latest versions of `transformers`, `trl`, and `peft` libraries.
@@ -356,11 +525,11 @@ Apache-2.0 license - see LICENSE file for details
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+- Development setup
+- Coding standards
+- Testing requirements
+- Pull request process
 
 ## 📧 Contact
 
