@@ -10,6 +10,8 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 from huggingface_hub import login
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel, PeftConfig
 
 import torch
 
