@@ -1,4 +1,4 @@
-# Text-to-SQL Evaluation: Enhanced Configuration & Usage Guide
+# Text-to-SQL Evaluation: Configuration & Usage Guide
 
 ## Table of Contents
 
