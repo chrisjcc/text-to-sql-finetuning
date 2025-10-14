@@ -86,7 +86,7 @@ def authenticate_huggingface(token: Optional[str] = None) -> None:
 def check_gpu_availability() -> None:
     """Check if GPU is available and log device information."""
     logger = logging.getLogger(__name__)
-    
+
     if torch.cuda.is_available():
         device_count = torch.cuda.device_count()
         logger.info(f"GPU available: {device_count} device(s)")
@@ -101,16 +101,16 @@ def check_gpu_availability() -> None:
 def check_flash_attention_support() -> bool:
     """
     Check if the current GPU supports Flash Attention.
-    
+
     Returns:
         True if Flash Attention is supported, False otherwise
     """
     logger = logging.getLogger(__name__)
-    
+
     if not torch.cuda.is_available():
         logger.warning("No GPU available. Flash Attention requires CUDA.")
         return False
-    
+
     try:
         compute_capability = torch.cuda.get_device_capability()[0]
         if compute_capability >= 8:
@@ -129,7 +129,7 @@ def check_flash_attention_support() -> bool:
 def print_trainable_parameters(model) -> None:
     """
     Print the number of trainable parameters in the model.
-    
+
     Args:
         model: The model to inspect
     """
@@ -145,14 +145,17 @@ def print_trainable_parameters(model) -> None:
 def validate_file_exists(file_path: Path, file_description: str = "File") -> None:
     """
     Validate that a file exists.
-    
+
     Args:
         file_path: Path to the file
         file_description: Description of the file for error messages
-        
+
     Raises:
         FileNotFoundError: If the file doesn't exist
     """
+    if isinstance(file_path, str):
+        file_path = Path(file_path.strip())
+
     if not file_path.exists():
         raise FileNotFoundError(f"{file_description} not found: {file_path}")
 
@@ -160,13 +163,13 @@ def validate_file_exists(file_path: Path, file_description: str = "File") -> Non
 def create_directory(directory: Path, description: str = "Directory") -> None:
     """
     Create a directory if it doesn't exist.
-    
+
     Args:
         directory: Path to the directory
         description: Description of the directory for logging
     """
     logger = logging.getLogger(__name__)
-    
+
     if not directory.exists():
         directory.mkdir(parents=True, exist_ok=True)
         logger.info(f"{description} created: {directory}")
@@ -177,10 +180,10 @@ def create_directory(directory: Path, description: str = "Directory") -> None:
 def get_model_size_mb(model) -> float:
     """
     Calculate the size of a model in megabytes.
-    
+
     Args:
         model: The model to measure
-        
+
     Returns:
         Model size in MB
     """
