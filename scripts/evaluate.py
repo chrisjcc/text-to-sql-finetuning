@@ -483,12 +483,6 @@ def main(cfg: DictConfig):
     print("EVALUATION COMPLETE")
     print(f"{'='*80}\n")
 
-    print("\nNote: This evaluation uses exact string matching with whitespace normalization.")
-    print("Alternative evaluation methods could include:")
-    print("  - Executing-based queries and comparing results")
-    print("  - Semantic similarity of SQL queries")
-    print("  - Human evaluation of query correctness")
-
 
 if __name__ == "__main__":
     main()
