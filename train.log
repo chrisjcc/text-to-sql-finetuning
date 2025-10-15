@@ -1,0 +1,605 @@
+make train-accelerate
+🚀 Training with accelerate launch...
+The following values were not passed to `accelerate launch` and had defaults used instead:
+	`--num_processes` was set to a value of `1`
+	`--num_machines` was set to a value of `1`
+	`--mixed_precision` was set to a value of `'no'`
+	`--dynamo_backend` was set to a value of `'no'`
+To avoid this warning pass in values for each of the problematic parameters or run `accelerate config`.
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+Cannot authenticate through git-credential as no helper is defined on your machine.
+You might have to re-authenticate when pushing to the Hugging Face Hub.
+Run the following command in your terminal in case you want to set the 'store' credential helper as default.
+
+git config --global credential.helper store
+
+Read https://git-scm.com/book/en/v2/Git-Tools-Credential-Storage for more details.
+Token has not been saved to git credential helper.
+[2025-10-15 21:22:31][huggingface_hub._login][WARNING] - Token has not been saved to git credential helper.
+Note: Environment variable`HF_TOKEN` is set and is the current active token independently from the token you've just configured.
+[2025-10-15 21:22:31][huggingface_hub._login][WARNING] - Note: Environment variable`HF_TOKEN` is set and is the current active token independently from the token you've just configured.
+[2025-10-15 21:22:31][src.utils][INFO] - Successfully authenticated with Hugging Face
+[2025-10-15 21:22:31][src.utils][INFO] - GPU available: 1 device(s)
+[2025-10-15 21:22:31][src.utils][INFO] -   Device 0: NVIDIA H200 (150.12 GB)
+[2025-10-15 21:22:31][src.data_preparation][INFO] - Loading prepared dataset from /home/chrisjcc/text-to-sql-finetuning/data/train_dataset.json
+Generating train split: 10000 examples [00:00, 403383.79 examples/s]
+[2025-10-15 21:22:31][src.data_preparation][INFO] - Successfully loaded 10000 samples
+[2025-10-15 21:22:31][src.model_setup][INFO] - Loading model: meta-llama/Llama-3.1-8B
+[2025-10-15 21:22:31][src.model_setup][INFO] - Creating BitsAndBytes configuration for 4-bit quantization
+[2025-10-15 21:22:31][src.model_setup][WARNING] - ⚠ Flash Attention 2 not available, using SDPA
+`torch_dtype` is deprecated! Use `dtype` instead!
+[2025-10-15 21:22:32][accelerate.utils.modeling][INFO] - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:11<00:00,  2.93s/it]
+[2025-10-15 21:22:44][src.model_setup][INFO] - Model loaded successfully with sdpa attention
+[2025-10-15 21:22:45][src.model_setup][INFO] - Tokenizer loaded successfully (max_length=2048)
+[2025-10-15 21:22:45][src.model_setup][INFO] - Setting up chat format for model and tokenizer
+The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+The new lm_head weights will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+[2025-10-15 21:22:45][src.model_setup][INFO] - Chat format setup completed
+[2025-10-15 21:22:45][src.model_setup][INFO] - Creating LoRA config: alpha=128, r=256, dropout=0.05
+[2025-10-15 21:22:45][src.model_setup][INFO] - Creating LoRA config: alpha=16, r=8, dropout=0.05
+[2025-10-15 21:22:45][src.utils][INFO] - Trainable parameters: 1,050,955,776
+[2025-10-15 21:22:45][src.utils][INFO] - All parameters: 4,540,616,704
+[2025-10-15 21:22:45][src.utils][INFO] - Trainable%: 23.15%
+[2025-10-15 21:22:45][src.training][INFO] - Formatting dataset with chat template...
+Applying chat template: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████| 10000/10000 [00:00<00:00, 18653.08 examples/s]
+[2025-10-15 21:22:46][src.training][INFO] - Sample formatted text (102 tokens):
+<|im_start|>system
+You are a text-to-SQL query translator. Users will ask questions in English and you will generate a SQL query based on the provided SCHEMA.
+SCHEMA:
+CREATE TABLE table_name_81 (result VARCHAR, year VARCHAR, tournament VARCHAR)<|im_end|>
+<|im_start|>user
+for the tournament of world amateur championship what was the result in 2010?<|im_end|>
+<|im_start|>assistant
+SELECT result FROM table_name_81 WHERE year = 2010 AND tournament = "world amateur championship"<|im_end|>
+...
+[2025-10-15 21:22:46][src.training][INFO] - ✓ Training format verified: no trailing 'assistant' marker
+[2025-10-15 21:22:46][src.training][INFO] - Creating SFT configuration
+
+================================================================================
+Starting training...
+================================================================================
+Output directory: Llama-3.1-8B-text-to-sql-adapter
+Number of epochs: 3
+Training samples: 10000
+Resume from checkpoint: False
+================================================================================
+
+[2025-10-15 21:22:46][src.training][INFO] - Starting training
+[2025-10-15 21:22:46][src.training][INFO] - Creating SFTTrainer
+[2025-10-15 21:22:47][trl.trainer.sft_trainer][WARNING] - Padding-free training is enabled, but the attention implementation is not set to a supported flash attention variant. Padding-free training flattens batches into a single sequence, and only the following implementations are known to reliably support this: flash_attention_2, flash_attention_3, kernels-community/flash-attn, kernels-community/flash-attn3, kernels-community/vllm-flash-attn3. Using other implementations may lead to unexpected behavior. To ensure compatibility, set `attn_implementation` in the model configuration to one of these supported options or verify that your attention mechanism can handle flattened sequences.
+[2025-10-15 21:22:47][trl.trainer.sft_trainer][WARNING] - You are using packing, but the attention implementation is not set to a supported flash attention variant. Packing gathers multiple samples into a single sequence, and only the following implementations are known to reliably support this: flash_attention_2, flash_attention_3, kernels-community/flash-attn, kernels-community/flash-attn3, kernels-community/vllm-flash-attn3. Using other implementations may lead to cross-contamination between samples. To avoid this, either disable packing by setting `packing=False`, or set `attn_implementation` in the model configuration to one of these supported options.
+Adding EOS to train dataset: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████| 10000/10000 [00:00<00:00, 81973.80 examples/s]
+Tokenizing train dataset: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████| 10000/10000 [00:01<00:00, 5053.12 examples/s]
+Packing train dataset: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████| 10000/10000 [00:00<00:00, 123412.34 examples/s]
+[2025-10-15 21:22:50][src.training][INFO] - SFTTrainer created successfully
+The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'eos_token_id': 128001, 'bos_token_id': 128000, 'pad_token_id': None}.
+wandb: Currently logged in as: chrisjcc (rl4aa) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.22.2
+wandb: Run data is saved locally in /home/chrisjcc/text-to-sql-finetuning/wandb/run-20251015_212250-8cr8r38x
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run mild-breeze-20
+wandb: ⭐️ View project at https://wandb.ai/rl4aa/text-to-sql-finetuning
+wandb: 🚀 View run at https://wandb.ai/rl4aa/text-to-sql-finetuning/runs/8cr8r38x
+  0%|                                                                                                                                                       | 0/492 [00:00<?, ?it/s]/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py:929: UserWarning: torch.utils.checkpoint: the use_reentrant parameter should be passed explicitly. In version 2.5 we will raise an exception if use_reentrant is not passed. use_reentrant=False is recommended, but if you need to preserve the current default behavior, you can pass use_reentrant=True. Refer to docs for more details on the differences between the two variants.
+  return fn(*args, **kwargs)
+{'loss': 1.284, 'grad_norm': 0.7661410570144653, 'learning_rate': 0.0002, 'entropy': 1.3030878931283951, 'num_tokens': 78894.0, 'mean_token_accuracy': 0.7615739874541759, 'epoch': 0.06}
+{'loss': 0.6355, 'grad_norm': 0.8092691898345947, 'learning_rate': 0.0002, 'entropy': 0.6311472669243813, 'num_tokens': 156401.0, 'mean_token_accuracy': 0.8750163175165653, 'epoch': 0.12}
+{'loss': 0.5644, 'grad_norm': 0.3376682996749878, 'learning_rate': 0.0002, 'entropy': 0.5676429007202387, 'num_tokens': 235549.0, 'mean_token_accuracy': 0.883837379515171, 'epoch': 0.18}
+{'loss': 0.5288, 'grad_norm': 0.34814366698265076, 'learning_rate': 0.0002, 'entropy': 0.5275167845189571, 'num_tokens': 314038.0, 'mean_token_accuracy': 0.8901332303881645, 'epoch': 0.24}
+{'loss': 0.521, 'grad_norm': 0.2858307957649231, 'learning_rate': 0.0002, 'entropy': 0.5211484577506781, 'num_tokens': 392144.0, 'mean_token_accuracy': 0.891176788508892, 'epoch': 0.31}
+{'loss': 0.5065, 'grad_norm': 0.2626403272151947, 'learning_rate': 0.0002, 'entropy': 0.4974590424448252, 'num_tokens': 471220.0, 'mean_token_accuracy': 0.8950321145355702, 'epoch': 0.37}
+{'loss': 0.4681, 'grad_norm': 0.3093666434288025, 'learning_rate': 0.0002, 'entropy': 0.45924381986260415, 'num_tokens': 550261.0, 'mean_token_accuracy': 0.9014293603599072, 'epoch': 0.43}
+{'loss': 0.4789, 'grad_norm': 0.31586748361587524, 'learning_rate': 0.0002, 'entropy': 0.4797238614410162, 'num_tokens': 628371.0, 'mean_token_accuracy': 0.8994041040539742, 'epoch': 0.49}
+{'loss': 0.4867, 'grad_norm': 0.2587471604347229, 'learning_rate': 0.0002, 'entropy': 0.4795207425951958, 'num_tokens': 707461.0, 'mean_token_accuracy': 0.8958770304918289, 'epoch': 0.55}
+{'loss': 0.4792, 'grad_norm': 0.2586282789707184, 'learning_rate': 0.0002, 'entropy': 0.4735460586845875, 'num_tokens': 785900.0, 'mean_token_accuracy': 0.8983439058065414, 'epoch': 0.61}
+{'loss': 0.4591, 'grad_norm': 0.28268754482269287, 'learning_rate': 0.0002, 'entropy': 0.4557453952729702, 'num_tokens': 865120.0, 'mean_token_accuracy': 0.9006908878684043, 'epoch': 0.67}
+{'loss': 0.4481, 'grad_norm': 0.29885849356651306, 'learning_rate': 0.0002, 'entropy': 0.45037118047475816, 'num_tokens': 942517.0, 'mean_token_accuracy': 0.902985829114914, 'epoch': 0.73}
+{'loss': 0.4533, 'grad_norm': 0.2726331651210785, 'learning_rate': 0.0002, 'entropy': 0.44312436431646346, 'num_tokens': 1021769.0, 'mean_token_accuracy': 0.9006632402539253, 'epoch': 0.79}
+{'loss': 0.4585, 'grad_norm': 0.254126638174057, 'learning_rate': 0.0002, 'entropy': 0.4528666723519564, 'num_tokens': 1100447.0, 'mean_token_accuracy': 0.9008028231561184, 'epoch': 0.86}
+{'loss': 0.4253, 'grad_norm': 0.258027046918869, 'learning_rate': 0.0002, 'entropy': 0.42862613275647166, 'num_tokens': 1178731.0, 'mean_token_accuracy': 0.9075477451086045, 'epoch': 0.92}
+{'loss': 0.4391, 'grad_norm': 0.33845755457878113, 'learning_rate': 0.0002, 'entropy': 0.4255219131708145, 'num_tokens': 1257908.0, 'mean_token_accuracy': 0.9050762042403221, 'epoch': 0.98}
+ 33%|███████████████████████████████████████████████                                                                                              | 164/492 [06:31<11:34,  2.12s/it]/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/peft/utils/save_and_load.py:300: UserWarning: Setting `save_embedding_layers` to `True` as the embedding layer has been resized during finetuning.
+  warnings.warn(
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py:929: UserWarning: torch.utils.checkpoint: the use_reentrant parameter should be passed explicitly. In version 2.5 we will raise an exception if use_reentrant is not passed. use_reentrant=False is recommended, but if you need to preserve the current default behavior, you can pass use_reentrant=True. Refer to docs for more details on the differences between the two variants.
+  return fn(*args, **kwargs)
+{'loss': 0.4414, 'grad_norm': 0.2420516014099121, 'learning_rate': 0.0002, 'entropy': 0.44184575955589095, 'num_tokens': 1333494.0, 'mean_token_accuracy': 0.9034423843606726, 'epoch': 1.04}
+{'loss': 0.4112, 'grad_norm': 0.2441737949848175, 'learning_rate': 0.0002, 'entropy': 0.41705491580069065, 'num_tokens': 1412017.0, 'mean_token_accuracy': 0.9089417308568954, 'epoch': 1.1}
+{'loss': 0.4236, 'grad_norm': 0.2669134736061096, 'learning_rate': 0.0002, 'entropy': 0.4121294440701604, 'num_tokens': 1489001.0, 'mean_token_accuracy': 0.9078972332179547, 'epoch': 1.16}
+{'loss': 0.4172, 'grad_norm': 0.25570186972618103, 'learning_rate': 0.0002, 'entropy': 0.41609181836247444, 'num_tokens': 1567671.0, 'mean_token_accuracy': 0.908442810177803, 'epoch': 1.22}
+{'loss': 0.4024, 'grad_norm': 0.25530704855918884, 'learning_rate': 0.0002, 'entropy': 0.40230481773614885, 'num_tokens': 1646638.0, 'mean_token_accuracy': 0.9098001599311829, 'epoch': 1.28}
+{'loss': 0.4177, 'grad_norm': 0.29644542932510376, 'learning_rate': 0.0002, 'entropy': 0.41354524381458757, 'num_tokens': 1725712.0, 'mean_token_accuracy': 0.9065292127430439, 'epoch': 1.34}
+{'loss': 0.4105, 'grad_norm': 0.27629968523979187, 'learning_rate': 0.0002, 'entropy': 0.4099082171916962, 'num_tokens': 1804997.0, 'mean_token_accuracy': 0.9092783220112324, 'epoch': 1.4}
+{'loss': 0.4036, 'grad_norm': 0.24559961259365082, 'learning_rate': 0.0002, 'entropy': 0.39947242960333823, 'num_tokens': 1883977.0, 'mean_token_accuracy': 0.9100758746266365, 'epoch': 1.46}
+{'loss': 0.4152, 'grad_norm': 0.24708926677703857, 'learning_rate': 0.0002, 'entropy': 0.4158388089388609, 'num_tokens': 1962977.0, 'mean_token_accuracy': 0.9087303631007672, 'epoch': 1.53}
+{'loss': 0.4007, 'grad_norm': 0.23230838775634766, 'learning_rate': 0.0002, 'entropy': 0.40046847611665726, 'num_tokens': 2041603.0, 'mean_token_accuracy': 0.910660357773304, 'epoch': 1.59}
+{'loss': 0.4249, 'grad_norm': 0.30724233388900757, 'learning_rate': 0.0002, 'entropy': 0.41478055976331235, 'num_tokens': 2119962.0, 'mean_token_accuracy': 0.9044089414179325, 'epoch': 1.65}
+{'loss': 0.4237, 'grad_norm': 0.25114136934280396, 'learning_rate': 0.0002, 'entropy': 0.4261078264564276, 'num_tokens': 2199062.0, 'mean_token_accuracy': 0.9057171821594239, 'epoch': 1.71}
+{'loss': 0.4067, 'grad_norm': 0.2610134184360504, 'learning_rate': 0.0002, 'entropy': 0.40244207680225375, 'num_tokens': 2277406.0, 'mean_token_accuracy': 0.9098971307277679, 'epoch': 1.77}
+{'loss': 0.4197, 'grad_norm': 0.28594106435775757, 'learning_rate': 0.0002, 'entropy': 0.4202086556702852, 'num_tokens': 2354980.0, 'mean_token_accuracy': 0.9070365257561207, 'epoch': 1.83}
+{'loss': 0.4038, 'grad_norm': 0.26354432106018066, 'learning_rate': 0.0002, 'entropy': 0.40282502956688404, 'num_tokens': 2433856.0, 'mean_token_accuracy': 0.9087013594806195, 'epoch': 1.89}
+{'loss': 0.408, 'grad_norm': 0.23457537591457367, 'learning_rate': 0.0002, 'entropy': 0.40551433600485326, 'num_tokens': 2512614.0, 'mean_token_accuracy': 0.9104418002068997, 'epoch': 1.95}
+ 67%|██████████████████████████████████████████████████████████████████████████████████████████████                                               | 328/492 [13:15<05:54,  2.16s/it]/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/peft/utils/save_and_load.py:300: UserWarning: Setting `save_embedding_layers` to `True` as the embedding layer has been resized during finetuning.
+  warnings.warn(
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/torch/_dynamo/eval_frame.py:929: UserWarning: torch.utils.checkpoint: the use_reentrant parameter should be passed explicitly. In version 2.5 we will raise an exception if use_reentrant is not passed. use_reentrant=False is recommended, but if you need to preserve the current default behavior, you can pass use_reentrant=True. Refer to docs for more details on the differences between the two variants.
+  return fn(*args, **kwargs)
+{'loss': 0.3967, 'grad_norm': 0.2158891260623932, 'learning_rate': 0.0002, 'entropy': 0.3977750911341085, 'num_tokens': 2588552.0, 'mean_token_accuracy': 0.9109961870428803, 'epoch': 2.01}
+{'loss': 0.3712, 'grad_norm': 0.2816641628742218, 'learning_rate': 0.0002, 'entropy': 0.3706113962456584, 'num_tokens': 2666829.0, 'mean_token_accuracy': 0.9156120322644711, 'epoch': 2.07}
+{'loss': 0.3629, 'grad_norm': 0.25476858019828796, 'learning_rate': 0.0002, 'entropy': 0.3683540839701891, 'num_tokens': 2745667.0, 'mean_token_accuracy': 0.9155065208673477, 'epoch': 2.13}
+{'loss': 0.3519, 'grad_norm': 0.27007442712783813, 'learning_rate': 0.0002, 'entropy': 0.35267520751804116, 'num_tokens': 2824653.0, 'mean_token_accuracy': 0.9183964878320694, 'epoch': 2.2}
+{'loss': 0.3649, 'grad_norm': 0.257252961397171, 'learning_rate': 0.0002, 'entropy': 0.3692429680377245, 'num_tokens': 2903232.0, 'mean_token_accuracy': 0.9158099368214607, 'epoch': 2.26}
+{'loss': 0.3647, 'grad_norm': 0.27899402379989624, 'learning_rate': 0.0002, 'entropy': 0.3603018781170249, 'num_tokens': 2981210.0, 'mean_token_accuracy': 0.9143483005464077, 'epoch': 2.32}
+{'loss': 0.3538, 'grad_norm': 0.341726690530777, 'learning_rate': 0.0002, 'entropy': 0.355745355412364, 'num_tokens': 3059968.0, 'mean_token_accuracy': 0.9184965908527374, 'epoch': 2.38}
+{'loss': 0.371, 'grad_norm': 0.34325525164604187, 'learning_rate': 0.0002, 'entropy': 0.3720928769558668, 'num_tokens': 3138642.0, 'mean_token_accuracy': 0.9152806356549263, 'epoch': 2.44}
+{'loss': 0.3642, 'grad_norm': 0.2529054284095764, 'learning_rate': 0.0002, 'entropy': 0.3632666453719139, 'num_tokens': 3217796.0, 'mean_token_accuracy': 0.9175026848912239, 'epoch': 2.5}
+{'loss': 0.3666, 'grad_norm': 0.23795315623283386, 'learning_rate': 0.0002, 'entropy': 0.36912066489458084, 'num_tokens': 3296801.0, 'mean_token_accuracy': 0.9156273826956749, 'epoch': 2.56}
+{'loss': 0.3785, 'grad_norm': 0.3047929108142853, 'learning_rate': 0.0002, 'entropy': 0.3790536070242524, 'num_tokens': 3374886.0, 'mean_token_accuracy': 0.9129391059279441, 'epoch': 2.62}
+{'loss': 0.3626, 'grad_norm': 0.30204614996910095, 'learning_rate': 0.0002, 'entropy': 0.36204728446900847, 'num_tokens': 3453331.0, 'mean_token_accuracy': 0.9154734551906586, 'epoch': 2.68}
+{'loss': 0.3773, 'grad_norm': 0.28586021065711975, 'learning_rate': 0.0002, 'entropy': 0.3817449823021889, 'num_tokens': 3532391.0, 'mean_token_accuracy': 0.9138587802648545, 'epoch': 2.75}
+{'loss': 0.3684, 'grad_norm': 0.2434483915567398, 'learning_rate': 0.0002, 'entropy': 0.3676670478656888, 'num_tokens': 3609888.0, 'mean_token_accuracy': 0.9148636586964131, 'epoch': 2.81}
+{'loss': 0.3725, 'grad_norm': 0.26152893900871277, 'learning_rate': 0.0002, 'entropy': 0.36881714016199113, 'num_tokens': 3688277.0, 'mean_token_accuracy': 0.9139997720718384, 'epoch': 2.87}
+{'loss': 0.3606, 'grad_norm': 0.26311805844306946, 'learning_rate': 0.0002, 'entropy': 0.362045731768012, 'num_tokens': 3767010.0, 'mean_token_accuracy': 0.9164561450481414, 'epoch': 2.93}
+{'loss': 0.3713, 'grad_norm': 0.24543392658233643, 'learning_rate': 0.0002, 'entropy': 0.3754317909479141, 'num_tokens': 3846373.0, 'mean_token_accuracy': 0.9136614531278611, 'epoch': 2.99}
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 492/492 [19:58<00:00,  2.13s/it]/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/peft/utils/save_and_load.py:300: UserWarning: Setting `save_embedding_layers` to `True` as the embedding layer has been resized during finetuning.
+  warnings.warn(
+{'train_runtime': 1207.5822, 'train_samples_per_second': 3.252, 'train_steps_per_second': 0.407, 'train_loss': 0.43900813283474466, 'entropy': 0.37126381351397586, 'num_tokens': 3859227.0, 'mean_token_accuracy': 0.919078006194188, 'epoch': 3.0}
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 492/492 [20:06<00:00,  2.45s/it]
+[2025-10-15 21:43:05][src.training][INFO] - Training completed successfully
+
+================================================================================
+Saving model...
+================================================================================
+[2025-10-15 21:43:05][src.training][INFO] - Saving model to /home/chrisjcc/text-to-sql-finetuning/Llama-3.1-8B-text-to-sql-adapter
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/peft/utils/save_and_load.py:300: UserWarning: Setting `save_embedding_layers` to `True` as the embedding layer has been resized during finetuning.
+  warnings.warn(
+Processing Files (3 / 3)      : 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2.20GB / 2.20GB,  492MB/s  
+New Data Upload               : |                                                                                                                      |  0.00B /  0.00B,  0.00B/s  
+  ...adapter/training_args.bin: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 6.35kB / 6.35kB            
+  ...ql-adapter/tokenizer.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 17.2MB / 17.2MB            
+  ...adapter_model.safetensors: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2.19GB / 2.19GB            
+No files have been modified since last commit. Skipping to prevent empty commit.
+[2025-10-15 21:43:27][huggingface_hub.hf_api][WARNING] - No files have been modified since last commit. Skipping to prevent empty commit.
+[2025-10-15 21:43:39][src.training][INFO] - Model saved successfully
+[2025-10-15 21:43:39][src.training][INFO] - Saving tokenizer to /home/chrisjcc/text-to-sql-finetuning/Llama-3.1-8B-text-to-sql-adapter
+[2025-10-15 21:43:40][src.training][INFO] - Tokenizer saved successfully
+[2025-10-15 21:43:40][src.training][INFO] -   Vocabulary size: 128258
+[2025-10-15 21:43:40][src.training][INFO] -   Has chat template: True
+[2025-10-15 21:43:40][src.training][INFO] -   Special tokens: {'bos_token': '<|im_start|>', 'eos_token': '<|im_end|>', 'pad_token': '<|im_end|>', 'additional_special_tokens': ['<|im_start|>', '<|im_end|>']}
+[2025-10-15 21:43:40][src.training][INFO] -   All special tokens: ['<|im_start|>', '<|im_end|>']
+
+================================================================================
+Cleaning up...
+================================================================================
+[2025-10-15 21:43:40][src.training][INFO] - Cleaning up GPU memory
+[2025-10-15 21:43:40][src.training][INFO] - Cleanup completed
+
+================================================================================
+Training completed successfully!
+================================================================================
+Model saved to: Llama-3.1-8B-text-to-sql-adapter
+
+Next steps:
+1. Evaluate the model: python scripts/evaluate.py
+2. Test inference: python scripts/inference.py --interactive
+3. Merge and upload: python scripts/upload_to_hf.py
+================================================================================
+wandb: 
+wandb: 🚀 View run mild-breeze-20 at: 
+wandb: Find logs at: wandb/run-20251015_212250-8cr8r38x/logs
+(llm_env) chrisjcc@computeinstance-u00bdnzms0b0xbejgn:~/text-to-sql-finetuning$ make help
+Available commands:
+  make install           - Install Python dependencies
+  make install-flash     - Install Flash Attention (requires CUDA)
+  make setup             - Setup project (install + create directories)
+  make prepare-data      - Prepare and save datasets
+  make train             - Train (auto-detect accelerate/python)
+  make train-accelerate  - Train with accelerate (force)
+  make train-basic       - Train with python (force)
+  make evaluate          - Evaluate the trained model
+  make upload-to-hf      - Merge LoRA and upload to HuggingFace
+  make inference         - Run interactive inference
+  make clean             - Clean up generated files
+(llm_env) chrisjcc@computeinstance-u00bdnzms0b0xbejgn:~/text-to-sql-finetuning$ git pull origin main
+From https://github.com/chrisjcc/text-to-sql-finetuning
+ * branch            main       -> FETCH_HEAD
+Already up to date.
+(llm_env) chrisjcc@computeinstance-u00bdnzms0b0xbejgn:~/text-to-sql-finetuning$ make upload-to-hf
+python -m scripts.upload_to_hf
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+
+================================================================================
+Uploading to Hugging Face Hub
+================================================================================
+
+Configuration:
+  Username: chrisjcc
+  Base Model: meta-llama/Llama-3.1-8B
+  Upload Adapter: True
+  Upload Merged: False
+  Upload Dataset: True
+
+
+================================================================================
+Validating Prerequisites
+================================================================================
+✓ HF token found
+✓ HF username: chrisjcc
+✓ Output directory found: Llama-3.1-8B-text-to-sql-adapter
+✓ Adapter files found
+✓ Dataset found: data/train_dataset.json
+Cannot authenticate through git-credential as no helper is defined on your machine.
+You might have to re-authenticate when pushing to the Hugging Face Hub.
+Run the following command in your terminal in case you want to set the 'store' credential helper as default.
+
+git config --global credential.helper store
+
+Read https://git-scm.com/book/en/v2/Git-Tools-Credential-Storage for more details.
+Token has not been saved to git credential helper.
+[2025-10-15 21:44:44][huggingface_hub._login][WARNING] - Token has not been saved to git credential helper.
+Note: Environment variable`HF_TOKEN` is set and is the current active token independently from the token you've just configured.
+[2025-10-15 21:44:44][huggingface_hub._login][WARNING] - Note: Environment variable`HF_TOKEN` is set and is the current active token independently from the token you've just configured.
+[2025-10-15 21:44:44][src.utils][INFO] - Successfully authenticated with Hugging Face
+
+================================================================================
+Step 1: Uploading LoRA Adapter
+================================================================================
+Creating repository: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+✓ Repository ready: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+Generating model card...
+✓ Model card created: /home/chrisjcc/text-to-sql-finetuning/Llama-3.1-8B-text-to-sql-adapter/README.md
+Verifying tokenizer in output directory...
+✓ Tokenizer verified (vocab size: 128258)
+✓ Chat format special tokens confirmed
+Uploading adapter files to chrisjcc/Llama-3.1-8B-text-to-sql-adapter...
+Processing Files (2 / 2)      : 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2.20GB / 2.20GB,  502MB/s  
+New Data Upload               : |                                                                                                                      |  0.00B /  0.00B,  0.00B/s  
+  ...adapter_model.safetensors: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2.19GB / 2.19GB            
+  ...ql-adapter/tokenizer.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 17.2MB / 17.2MB            
+✓ Adapter uploaded successfully!
+✓ View at: https://huggingface.co/chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+⊘ Skipping merged model upload (disabled in config)
+
+================================================================================
+Step 3: Uploading Dataset
+================================================================================
+Creating dataset repository: chrisjcc/text-to-sql-spider-dataset
+✓ Dataset repository ready: chrisjcc/text-to-sql-spider-dataset
+Loading dataset from: /home/chrisjcc/text-to-sql-finetuning/data/train_dataset.json
+✓ Dataset loaded: 10000 samples
+Generating dataset card...
+✓ Dataset card created: /home/chrisjcc/text-to-sql-finetuning/data/README.md
+Uploading dataset to chrisjcc/text-to-sql-spider-dataset...
+Creating parquet from Arrow format: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [00:00<00:00, 720.23ba/s]
+Processing Files (1 / 1)      : 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.13MB / 1.13MB,  0.00B/s  
+New Data Upload               : |                                                                                                                      |  0.00B /  0.00B,  0.00B/s  
+                              : 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1.13MB / 1.13MB            
+Uploading the dataset shards: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00,  1.34it/s]
+✓ Dataset uploaded: 10000 samples
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/huggingface_hub/hf_api.py:9717: UserWarning: Warnings while validating metadata in README.md:
+- The task_categories "text2text-generation" is not in the official list: text-classification, token-classification, table-question-answering, question-answering, zero-shot-classification, translation, summarization, feature-extraction, text-generation, fill-mask, sentence-similarity, text-to-speech, text-to-audio, automatic-speech-recognition, audio-to-audio, audio-classification, audio-text-to-text, voice-activity-detection, depth-estimation, image-classification, object-detection, image-segmentation, text-to-image, image-to-text, image-to-image, image-to-video, unconditional-image-generation, video-classification, reinforcement-learning, robotics, tabular-classification, tabular-regression, tabular-to-text, table-to-text, multiple-choice, text-ranking, text-retrieval, time-series-forecasting, text-to-video, image-text-to-text, visual-question-answering, document-question-answering, zero-shot-image-classification, graph-ml, mask-generation, zero-shot-object-detection, text-to-3d, image-to-3d, image-feature-extraction, video-text-to-text, keypoint-detection, visual-document-retrieval, any-to-any, video-to-video, other
+- The task_ids "text-to-sql" is not in the official list: acceptability-classification, entity-linking-classification, fact-checking, intent-classification, language-identification, multi-class-classification, multi-label-classification, multi-input-text-classification, natural-language-inference, semantic-similarity-classification, sentiment-classification, topic-classification, semantic-similarity-scoring, sentiment-scoring, sentiment-analysis, hate-speech-detection, text-scoring, named-entity-recognition, part-of-speech, parsing, lemmatization, word-sense-disambiguation, coreference-resolution, extractive-qa, open-domain-qa, closed-domain-qa, news-articles-summarization, news-articles-headline-generation, dialogue-modeling, dialogue-generation, conversational, language-modeling, text-simplification, explanation-generation, abstractive-qa, open-domain-abstractive-qa, closed-domain-qa, open-book-qa, closed-book-qa, text2text-generation, slot-filling, masked-language-modeling, keyword-spotting, speaker-identification, audio-intent-classification, audio-emotion-recognition, audio-language-identification, multi-label-image-classification, multi-class-image-classification, face-detection, vehicle-detection, instance-segmentation, semantic-segmentation, panoptic-segmentation, image-captioning, image-inpainting, image-colorization, super-resolution, grasping, task-planning, tabular-multi-class-classification, tabular-multi-label-classification, tabular-single-column-regression, rdf-to-text, multiple-choice-qa, multiple-choice-coreference-resolution, document-retrieval, utterance-retrieval, entity-linking-retrieval, fact-checking-retrieval, univariate-time-series-forecasting, multivariate-time-series-forecasting, visual-question-answering, document-question-answering, pose-estimation
+  warnings.warn(f"Warnings while validating metadata in README.md:\n{message}")
+✓ Dataset card uploaded
+✓ View at: https://huggingface.co/datasets/chrisjcc/text-to-sql-spider-dataset
+
+================================================================================
+Upload Summary
+================================================================================
+✓ Adapter:  https://huggingface.co/chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+⊘ Merged:   Not uploaded
+✓ Dataset:  https://huggingface.co/datasets/chrisjcc/text-to-sql-spider-dataset
+
+✅ Upload process completed!
+
+Next steps:
+1. Test your model: python scripts/inference.py
+2. Share on social media or community forums
+3. Iterate and improve based on feedback
+
+(llm_env) chrisjcc@computeinstance-u00bdnzms0b0xbejgn:~/text-to-sql-finetuning$ make help
+Available commands:
+  make install           - Install Python dependencies
+  make install-flash     - Install Flash Attention (requires CUDA)
+  make setup             - Setup project (install + create directories)
+  make prepare-data      - Prepare and save datasets
+  make train             - Train (auto-detect accelerate/python)
+  make train-accelerate  - Train with accelerate (force)
+  make train-basic       - Train with python (force)
+  make evaluate          - Evaluate the trained model
+  make upload-to-hf      - Merge LoRA and upload to HuggingFace
+  make inference         - Run interactive inference
+  make clean             - Clean up generated files
+(llm_env) chrisjcc@computeinstance-u00bdnzms0b0xbejgn:~/text-to-sql-finetuning$ make evaluate
+📊 Running evaluation...
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'repr' attribute with value False was provided to the `Field()` function, which has no effect in the context it was used. 'repr' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+/home/chrisjcc/miniconda3/envs/llm_env/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py:2249: UnsupportedFieldAttributeWarning: The 'frozen' attribute with value True was provided to the `Field()` function, which has no effect in the context it was used. 'frozen' is field-specific metadata, and can only be attached to a model field using `Annotated` metadata or by assignment. This may have happened because an `Annotated` type alias using the `type` statement was used, or if the `Field()` function was attached to a single member of a union type.
+  warnings.warn(
+
+Configuration:
+ hf:
+  model_id: meta-llama/Llama-3.1-8B
+  token: ${oc.env:HF_TOKEN,null}
+  username: chrisjcc
+  upload:
+    push_to_hub: true
+    upload_adapter: true
+    upload_merged: false
+    upload_dataset: true
+    adapter_repo_suffix: -text-to-sql-adapter
+    merged_repo_suffix: -text-to-sql-merged
+    dataset_repo_name: text-to-sql-spider-dataset
+    author_name: Christian Contreras Campana
+    license: apache-2.0
+    language: en
+    include_training_args: true
+    commit_message: Upload supervised-fine-tuned text-to-SQL model
+dataset:
+  name: b-mc2/sql-create-context
+  train_samples: 10000
+  test_samples: 2500
+  train_dataset_path: data/train_dataset.json
+  test_dataset_path: data/test_dataset.json
+wandb:
+  enable: true
+  project: text-to-sql-finetuning
+  api_key: ${oc.env:WANDB_API_KEY,null}
+training:
+  resume_from_checkpoint: false
+  output_dir: Llama-3.1-8B-text-to-sql-adapter
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+  learning_rate: 0.0002
+  max_seq_length: 2048
+  max_grad_norm: 1.0
+  warmup_ratio: 0.03
+  logging_steps: 10
+  lora_alpha: 16
+  lora_dropout: 0.05
+  lora_r: 8
+evaluation:
+  model_path: meta-llama/Llama-3.1-8B
+  adapter_path: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+  num_eval_samples: 1000
+  batch_size: 8
+  temperature: 0.0
+  max_new_tokens: 128
+  skip_baseline: false
+  num_examples: 3
+  save_predictions: true
+inference:
+  mode: interactive
+  max_new_tokens: 512
+  temperature: 0.0
+  question: null
+  context: null
+  batch_file: null
+  output_file: inference_outputs.jsonl
+logging:
+  level: INFO
+  log_dir: logs
+
+🔹 Skipping local existence check for remote Model directory: meta-llama/Llama-3.1-8B
+[2025-10-15 21:45:21][src.utils][INFO] - GPU available: 1 device(s)
+[2025-10-15 21:45:21][src.utils][INFO] -   Device 0: NVIDIA H200 (150.12 GB)
+
+Loading test dataset...
+[2025-10-15 21:45:21][src.data_preparation][INFO] - Loading prepared dataset from /home/chrisjcc/text-to-sql-finetuning/data/test_dataset.json
+Generating train split: 2500 examples [00:00, 391376.53 examples/s]
+[2025-10-15 21:45:21][src.data_preparation][INFO] - Successfully loaded 2500 samples
+✅ Loaded 2500 samples.
+
+================================================================================
+Loading fine-tuned model (adapter: chrisjcc/Llama-3.1-8B-text-to-sql-adapter)...
+================================================================================
+[2025-10-15 21:45:21][src.model_setup][INFO] - Loading trained model with adapter from chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+[2025-10-15 21:45:21][src.model_setup][INFO] - Detected HuggingFace Hub ID: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+[2025-10-15 21:45:21][src.model_setup][INFO] - ✓ Model found on HuggingFace Hub
+adapter_config.json: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 934/934 [00:00<00:00, 11.6MB/s]
+[2025-10-15 21:45:22][src.model_setup][INFO] - Loading base model: meta-llama/Llama-3.1-8B
+`torch_dtype` is deprecated! Use `dtype` instead!
+[2025-10-15 21:45:22][accelerate.utils.modeling][INFO] - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.61it/s]
+[2025-10-15 21:45:24][src.model_setup][INFO] - ✓ Base model loaded (vocab size: 128256)
+[2025-10-15 21:45:24][src.model_setup][INFO] - Loading tokenizer from checkpoint...
+tokenizer_config.json: 51.0kB [00:00, 26.5MB/s]
+tokenizer.json: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 17.2M/17.2M [00:00<00:00, 57.0MB/s]
+special_tokens_map.json: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 419/419 [00:00<00:00, 5.69MB/s]
+chat_template.jinja: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 196/196 [00:00<00:00, 2.21MB/s]
+[2025-10-15 21:45:28][src.model_setup][INFO] - ✓ Tokenizer loaded (vocab size: 128258)
+[2025-10-15 21:45:28][src.model_setup][INFO] - ✓ Chat format already configured in tokenizer (skipping setup_chat_format)
+[2025-10-15 21:45:28][src.model_setup][INFO] -   Tokenizer vocab: 128258, Model vocab: 128256
+[2025-10-15 21:45:28][src.model_setup][INFO] -   Vocab size difference: 2 special tokens
+[2025-10-15 21:45:28][src.model_setup][INFO] -   Has chat template: True, Has chat tokens: True
+[2025-10-15 21:45:28][src.model_setup][INFO] - Resizing model embeddings from 128256 to 128258
+[2025-10-15 21:45:28][src.model_setup][INFO] - ✓ Model embeddings resized (preserving adapter's trained embeddings)
+[2025-10-15 21:45:28][src.model_setup][INFO] - Loading LoRA adapter from chrisjcc/Llama-3.1-8B-text-to-sql-adapter...
+adapter_model.safetensors: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2.19G/2.19G [00:01<00:00, 1.28GB/s]
+[2025-10-15 21:45:32][src.model_setup][INFO] - ✓ Adapter loaded successfully
+[2025-10-15 21:45:32][src.model_setup][INFO] - Adapter model embedding size: 128258
+[2025-10-15 21:45:32][src.model_setup][INFO] - Tokenizer vocabulary size: 128258
+[2025-10-15 21:45:32][src.model_setup][INFO] - ✓ Adapter embeddings match tokenizer vocabulary
+[2025-10-15 21:45:32][src.model_setup][INFO] - ✅ Model loaded successfully for evaluation
+🔄 Merging adapter weights into base model...
+✅ Adapter merged successfully
+✅ Fine-tuned model (adapter: chrisjcc/llama-3.1-8b-text-to-sql-adapter) loaded successfully.
+
+================================================================================
+SAMPLE PREDICTIONS (fine-tuned model)
+================================================================================
+The following generation flags are not valid and may be ignored: ['top_p']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+
+--- Example 1 ---
+Question: What are the names of those who made less than 3 wins in 15 matches?
+
+Ground Truth SQL:
+SELECT name FROM table_name_90 WHERE wins < 3 AND matches < 15
+
+Predicted SQL:
+system
+You are a text-to-SQL query translator. Users will ask questions in English and you will generate a SQL query based on the provided SCHEMA.
+SCHEMA:
+CREATE TABLE table_name_90 (name VARCHAR, wins VARCHAR, matches VARCHAR)
+user
+What are the names of those who made less than 3 wins in 15 matches?
+assistant
+SELECT name FROM table_name_90 WHERE wins < 3 AND matches = 15
+<|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|_|
+
+Match: ❌ Incorrect
+--------------------------------------------------------------------------------
+
+--- Example 2 ---
+Question: If Tuesday 1 June is 21' 05.27 107.351mph, what is the rider total number?
+
+Ground Truth SQL:
+SELECT COUNT(rider) FROM table_25220821_3 WHERE tues_1_june = "21' 05.27 107.351mph"
+
+Predicted SQL:
+system
+You are a text-to-SQL query translator. Users will ask questions in English and you will generate a SQL query based on the provided SCHEMA.
+SCHEMA:
+CREATE TABLE table_25220821_3 (rider VARCHAR, tues_1_june VARCHAR)
+user
+If Tuesday 1 June is 21' 05.27 107.351mph, what is the rider total number?
+assistant
+SELECT COUNT(rider) FROM table_25220821_3 WHERE tues_1_june = "21' 05.27 107.351mph" Marilyn Minter
+How many riders have a Tuesday 1 June of 21' 05.27 107.351mph? Marilyn Minter
+How many riders have a Tuesday 1 June of 21' 05.27 107.351mph? Marilyn Minter
+How many riders have a Tuesday 1 June of 21' 05.27 107.351mph? Marilyn Minter
+How many riders have a Tuesday 1 June
+
+Match: ❌ Incorrect
+--------------------------------------------------------------------------------
+
+--- Example 3 ---
+Question: What opponent has a result of 3–6, 6–2, 4–6?
+
+Ground Truth SQL:
+SELECT opponent FROM table_name_74 WHERE result = "3–6, 6–2, 4–6"
+
+Predicted SQL:
+system
+You are a text-to-SQL query translator. Users will ask questions in English and you will generate a SQL query based on the provided SCHEMA.
+SCHEMA:
+CREATE TABLE table_name_74 (opponent VARCHAR, result VARCHAR)
+user
+What opponent has a result of 3–6, 6–2, 4–6?
+assistant
+SELECT opponent FROM table_name_74 WHERE result = "3–6, 6–2, 4–6" Marilyn Bell is the opponent with a result of 3–6, 6–2, 4–6. Marilyn Bell is the opponent with a result of 3–6, 6–2, 4–6. Marilyn Bell is the opponent with a result of 3–6, 6–2, 4–6. Marilyn Bell is the opponent with a result of 3–6, 6–2, 4–6. Marilyn Bell is the opponent with a
+
+Match: ❌ Incorrect
+--------------------------------------------------------------------------------
+
+================================================================================
+RUNNING FULL COMPARATIVE EVALUATION
+================================================================================
+
+================================================================================
+STARTING COMPARATIVE EVALUATION
+================================================================================
+
+Preparing 1000 evaluation samples...
+
+================================================================================
+BASELINE EVALUATION (Base Model Without Fine-tuning)
+================================================================================
+
+================================================================================
+Loading base model...
+================================================================================
+[2025-10-15 21:45:35][src.model_setup][INFO] - Loading base model (no adapter): meta-llama/Llama-3.1-8B
+[2025-10-15 21:45:35][accelerate.utils.modeling][INFO] - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.61it/s]
+[2025-10-15 21:45:38][src.model_setup][INFO] - ✓ Base model loaded (vocab size: 128256)
+[2025-10-15 21:45:39][src.model_setup][INFO] - ✓ Tokenizer loaded (vocab size: 128256)
+The new embeddings will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+The new lm_head weights will be initialized from a multivariate normal distribution that has old embeddings' mean and covariance. As described in this article: https://nlp.stanford.edu/~johnhew/vocab-expansion.html. To disable this, use `mean_resizing=False`
+[2025-10-15 21:45:39][src.model_setup][INFO] - ✓ Chat format applied
+[2025-10-15 21:45:39][src.model_setup][INFO] - ✅ Base model loaded successfully
+✅ Base model loaded successfully.
+
+Evaluating baseline model on 1000 samples (batch_size=8)...
+Generating predictions: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 125/125 [05:38<00:00,  2.71s/it]
+
+📊 Baseline Accuracy: 0.00%
+
+================================================================================
+FINE-TUNED EVALUATION (Model With Adapter)
+================================================================================
+
+================================================================================
+Loading fine-tuned model (adapter: chrisjcc/Llama-3.1-8B-text-to-sql-adapter)...
+================================================================================
+[2025-10-15 21:51:18][src.model_setup][INFO] - Loading trained model with adapter from chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+[2025-10-15 21:51:18][src.model_setup][INFO] - Detected HuggingFace Hub ID: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+[2025-10-15 21:51:18][src.model_setup][INFO] - ✓ Model found on HuggingFace Hub
+[2025-10-15 21:51:18][src.model_setup][INFO] - Loading base model: meta-llama/Llama-3.1-8B
+[2025-10-15 21:51:18][accelerate.utils.modeling][INFO] - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+Loading checkpoint shards: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 4/4 [00:02<00:00,  1.62it/s]
+[2025-10-15 21:51:21][src.model_setup][INFO] - ✓ Base model loaded (vocab size: 128256)
+[2025-10-15 21:51:21][src.model_setup][INFO] - Loading tokenizer from checkpoint...
+[2025-10-15 21:51:22][src.model_setup][INFO] - ✓ Tokenizer loaded (vocab size: 128258)
+[2025-10-15 21:51:22][src.model_setup][INFO] - ✓ Chat format already configured in tokenizer (skipping setup_chat_format)
+[2025-10-15 21:51:22][src.model_setup][INFO] -   Tokenizer vocab: 128258, Model vocab: 128256
+[2025-10-15 21:51:22][src.model_setup][INFO] -   Vocab size difference: 2 special tokens
+[2025-10-15 21:51:22][src.model_setup][INFO] -   Has chat template: True, Has chat tokens: True
+[2025-10-15 21:51:22][src.model_setup][INFO] - Resizing model embeddings from 128256 to 128258
+[2025-10-15 21:51:22][src.model_setup][INFO] - ✓ Model embeddings resized (preserving adapter's trained embeddings)
+[2025-10-15 21:51:22][src.model_setup][INFO] - Loading LoRA adapter from chrisjcc/Llama-3.1-8B-text-to-sql-adapter...
+[2025-10-15 21:51:23][src.model_setup][INFO] - ✓ Adapter loaded successfully
+[2025-10-15 21:51:23][src.model_setup][INFO] - Adapter model embedding size: 128258
+[2025-10-15 21:51:23][src.model_setup][INFO] - Tokenizer vocabulary size: 128258
+[2025-10-15 21:51:23][src.model_setup][INFO] - ✓ Adapter embeddings match tokenizer vocabulary
+[2025-10-15 21:51:23][src.model_setup][INFO] - ✅ Model loaded successfully for evaluation
+🔄 Merging adapter weights into base model...
+✅ Adapter merged successfully
+✅ Fine-tuned model (adapter: chrisjcc/llama-3.1-8b-text-to-sql-adapter) loaded successfully.
+
+Evaluating fine-tuned model on 1000 samples (batch_size=8)...
+Generating predictions: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 125/125 [05:51<00:00,  2.81s/it]
+
+📊 Fine-tuned Accuracy: 0.00%
+
+💾 Detailed results saved to: /home/chrisjcc/text-to-sql-finetuning/results/evaluation_results_20251015_215714.json
+
+================================================================================
+EVALUATION SUMMARY
+================================================================================
+
+Configuration:
+  • Samples evaluated: 1000
+  • Batch size: 8
+  • Temperature: 0.0
+  • Base model: meta-llama/Llama-3.1-8B
+  • Adapter: chrisjcc/Llama-3.1-8B-text-to-sql-adapter
+
+--------------------------------------------------------------------------------
+Metric                         Baseline             Fine-tuned           Δ         
+--------------------------------------------------------------------------------
+Accuracy                         0.00%                 0.00%                +0.00%
+Correct predictions                 0 / 1000        0 / 1000       +0
+Incorrect predictions            1000                 1000                   +0
+--------------------------------------------------------------------------------
+
+💡 Relative Improvement: +0.00%
+➖ Fine-tuning showed no change in accuracy.
+
+================================================================================
+
+Note: This evaluation uses exact string matching with whitespace normalization.
+Alternative evaluation methods could include:
+  - Execution-based: Running queries and comparing results
+  - Semantic similarity: Comparing SQL query semantics
+  - Human evaluation: Manual assessment of query correctness
+
+================================================================================
+EVALUATION COMPLETE
+================================================================================
