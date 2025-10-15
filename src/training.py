@@ -226,8 +226,20 @@ class ModelTrainer:
             # Explicitly save tokenizer with special tokens added during training
             # This ensures tokenizer is available for inference and HF upload
             logger.info(f"Saving tokenizer to {self.output_dir}")
-            self.tokenizer.save_pretrained(self.output_dir)
-            logger.info(f"Tokenizer saved successfully (vocab size: {len(self.tokenizer)})")
+
+            # Save tokenizer with all configuration
+            # CRITICAL: Ensure special tokens and chat template are saved
+            self.tokenizer.save_pretrained(
+                self.output_dir,
+                legacy_format=False  # Use new format to ensure all config is saved
+            )
+
+            # Log tokenizer details for debugging
+            logger.info(f"Tokenizer saved successfully")
+            logger.info(f"  Vocabulary size: {len(self.tokenizer)}")
+            logger.info(f"  Has chat template: {hasattr(self.tokenizer, 'chat_template') and self.tokenizer.chat_template is not None}")
+            logger.info(f"  Special tokens: {self.tokenizer.special_tokens_map}")
+            logger.info(f"  All special tokens: {self.tokenizer.all_special_tokens}")
         except Exception as e:
             logger.error(f"Failed to save model or tokenizer: {e}")
             raise

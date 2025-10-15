@@ -114,8 +114,9 @@ class ModelEvaluator:
         self.model.to(self.device)
 
         # Ensure padding side and pad token
-        # FIXED: Use 'right' padding to match training configuration
-        self.tokenizer.padding_side = "right"
+        # FIXED: Use 'left' padding for generation with decoder-only models
+        # Training uses 'right' padding, but generation requires 'left' padding
+        self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
