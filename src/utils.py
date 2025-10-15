@@ -205,9 +205,11 @@ def extract_sql(generated_text: str) -> str:
     Extract a clean SQL query from model output.
 
     Handles:
+      - Chat template output (system/user/assistant markers)
+      - End-of-sequence tokens (<|im_end|>, <|_|>, etc.)
       - Markdown code blocks (```sql, ```SQL, ```)
       - Multi-line SQL queries
-      - Trailing explanations
+      - Trailing explanations and hallucinated text
       - SQL with or without semicolons
 
     Args:
@@ -219,14 +221,42 @@ def extract_sql(generated_text: str) -> str:
     if not generated_text:
         return ""
 
+    text = generated_text.strip()
+
+    # CRITICAL FIX: Extract assistant response from chat template
+    # The model may generate: "system\n...\nuser\n...\nassistant\nSELECT..."
+    if 'assistant' in text.lower():
+        # Split by 'assistant' marker (case-insensitive)
+        parts = re.split(r'\bassistant\b', text, flags=re.IGNORECASE, maxsplit=1)
+        if len(parts) > 1:
+            text = parts[1].strip()
+
+    # Remove common end-of-sequence tokens that may appear after SQL
+    # Examples: <|im_end|>, <|_|_|_|...>, etc.
+    text = re.split(r'<\|[^|]*\|>', text)[0].strip()
+
+    # Remove system/user prompts if they somehow remain
+    text = re.split(r'\b(system|user)\b', text, flags=re.IGNORECASE)[0].strip()
+
     # Remove markdown code blocks, ignore case
-    text = re.sub(r'```(?:sql)?', '', generated_text, flags=re.IGNORECASE)
+    text = re.sub(r'```(?:sql)?', '', text, flags=re.IGNORECASE)
     text = text.strip()
 
     # Prefer up to first semicolon if present
     if ';' in text:
         sql = text.split(';')[0].strip() + ';'
+        # Clean any trailing garbage after semicolon extraction
+        sql = sql.split('\n')[0].strip()
         return sql
+
+    # Stop at first newline to avoid hallucinated continuations
+    # The SQL query should typically be on the first line
+    first_line = text.split('\n')[0].strip()
+
+    # If first line looks like SQL (contains SELECT, INSERT, UPDATE, DELETE, CREATE)
+    sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'WITH']
+    if any(keyword in first_line.upper() for keyword in sql_keywords):
+        return first_line
 
     # Otherwise, stop at double newline, triple dash, or '###' separators
     split_patterns = [r'\n\n', r'\n---\n', r'###']

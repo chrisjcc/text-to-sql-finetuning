@@ -127,7 +127,12 @@ class ModelEvaluator:
     # ----------------------------------------
 
     def generate_sql_batch(self, prompts: list, max_new_tokens: int = 128) -> list:
-        """Generate SQL queries for a batch of prompts."""
+        """
+        Generate SQL queries for a batch of prompts.
+
+        IMPORTANT FIX: Improved generation config to prevent hallucinations
+        and extra text generation after SQL queries.
+        """
         self.model.eval()
         inputs = self.tokenizer(prompts, return_tensors="pt", padding=True).to(self.device)
 
@@ -139,6 +144,7 @@ class ModelEvaluator:
                 temperature=self.temperature if self.temperature > 0.0 else None,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
+                repetition_penalty=1.1,  # Prevent repetitive hallucinations
             )
 
         decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
