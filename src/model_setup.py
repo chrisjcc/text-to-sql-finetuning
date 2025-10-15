@@ -268,21 +268,26 @@ class ModelSetup:
 
             # Step 4: Check if special tokens are already present
             # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
+            # FIXED: Better detection of whether chat format has already been applied
             has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
+            vocab_already_extended = tokenizer_vocab_size > model.config.vocab_size
 
-            if has_chat_template:
-                # Tokenizer already has chat format configured from training
+            if has_chat_template and vocab_already_extended:
+                # Tokenizer already has chat format configured from training and vocab was extended
                 logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
                 logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
+                logger.info(f"  Vocab size difference: {tokenizer_vocab_size - model.config.vocab_size} special tokens")
 
                 # Resize model embeddings to match tokenizer if needed
+                # This ensures the base model has the correct embedding size before loading LoRA
                 if tokenizer_vocab_size != model.config.vocab_size:
                     logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
-                    model.resize_token_embeddings(tokenizer_vocab_size)
-                    logger.info("✓ Model embeddings resized")
+                    model.resize_token_embeddings(tokenizer_vocab_size, mean_resizing=False)
+                    logger.info("✓ Model embeddings resized (without random initialization)")
             else:
                 # Apply setup_chat_format for backwards compatibility or if special tokens not present
                 logger.info("Applying chat format setup (special tokens not found in tokenizer)...")
+                logger.info(f"  has_chat_template: {has_chat_template}, vocab_already_extended: {vocab_already_extended}")
                 model, tokenizer = setup_chat_format(model, tokenizer)
                 new_vocab_size = len(tokenizer)
                 logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
