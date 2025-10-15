@@ -269,31 +269,48 @@ class ModelSetup:
             # Step 4: Check if special tokens are already present
             # If tokenizer was uploaded with special tokens from training, skip setup_chat_format
             # FIXED: Better detection of whether chat format has already been applied
+            # Check for the presence of special tokens that setup_chat_format adds
             has_chat_template = hasattr(tokenizer, 'chat_template') and tokenizer.chat_template is not None
+
+            # More robust check: Look for specific special tokens added by setup_chat_format
+            # These tokens are typically added: <|im_start|> and <|im_end|>
+            special_token_ids = set(tokenizer.all_special_ids) if hasattr(tokenizer, 'all_special_ids') else set()
+            base_special_tokens = {'<|begin_of_text|>', '<|end_of_text|>', '<|eot_id|>', '<|start_header_id|>', '<|end_header_id|>'}
+            chat_special_tokens = {'<|im_start|>', '<|im_end|>'}
+
+            # Check if chat tokens are in the vocabulary
+            has_chat_tokens = any(token in tokenizer.get_vocab() for token in chat_special_tokens)
             vocab_already_extended = tokenizer_vocab_size > model.config.vocab_size
 
+            # Only skip setup_chat_format if we have BOTH chat template AND extended vocab
+            # This ensures we use the tokenizer exactly as it was saved during training
             if has_chat_template and vocab_already_extended:
                 # Tokenizer already has chat format configured from training and vocab was extended
                 logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
                 logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
                 logger.info(f"  Vocab size difference: {tokenizer_vocab_size - model.config.vocab_size} special tokens")
+                logger.info(f"  Has chat template: {has_chat_template}, Has chat tokens: {has_chat_tokens}")
 
                 # Resize model embeddings to match tokenizer if needed
                 # This ensures the base model has the correct embedding size before loading LoRA
+                # CRITICAL: Use mean_resizing=False to avoid reinitializing embeddings
+                # The adapter already has the correct embeddings trained
                 if tokenizer_vocab_size != model.config.vocab_size:
                     logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
                     model.resize_token_embeddings(tokenizer_vocab_size, mean_resizing=False)
-                    logger.info("✓ Model embeddings resized (without random initialization)")
+                    logger.info("✓ Model embeddings resized (preserving adapter's trained embeddings)")
             else:
                 # Apply setup_chat_format for backwards compatibility or if special tokens not present
-                logger.info("Applying chat format setup (special tokens not found in tokenizer)...")
+                logger.info("⚠️  Applying chat format setup (special tokens not found in tokenizer)...")
                 logger.info(f"  has_chat_template: {has_chat_template}, vocab_already_extended: {vocab_already_extended}")
+                logger.info(f"  has_chat_tokens: {has_chat_tokens}")
+                logger.warning("This may cause embedding mismatch with the trained adapter!")
                 model, tokenizer = setup_chat_format(model, tokenizer)
                 new_vocab_size = len(tokenizer)
                 logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")
 
                 if new_vocab_size != tokenizer_vocab_size:
-                    logger.info(f"  Added {new_vocab_size - tokenizer_vocab_size} special tokens")
+                    logger.warning(f"  Added {new_vocab_size - tokenizer_vocab_size} NEW special tokens - this will likely cause 0% accuracy!")
 
             # Step 5: Load PEFT adapter
             logger.info(f"Loading LoRA adapter from {adapter_path}...")
@@ -304,6 +321,20 @@ class ModelSetup:
                 torch_dtype=torch.bfloat16,
             )
             logger.info("✓ Adapter loaded successfully")
+
+            # Step 5.5: Verify the adapter has embeddings for extended vocabulary
+            # The adapter should have saved the new token embeddings if vocab was extended during training
+            if hasattr(model, 'base_model') and hasattr(model.base_model, 'model'):
+                base_model = model.base_model.model
+                adapter_vocab_size = base_model.get_input_embeddings().weight.shape[0]
+                logger.info(f"Adapter model embedding size: {adapter_vocab_size}")
+                logger.info(f"Tokenizer vocabulary size: {len(tokenizer)}")
+
+                if adapter_vocab_size != len(tokenizer):
+                    logger.warning(f"⚠️  Mismatch: Adapter embeddings ({adapter_vocab_size}) != Tokenizer vocab ({len(tokenizer)})")
+                    logger.warning("This indicates the extended embeddings were not saved with the adapter.")
+                else:
+                    logger.info("✓ Adapter embeddings match tokenizer vocabulary")
 
             # Step 6: Set padding token if needed
             if tokenizer.pad_token is None:
