@@ -222,8 +222,14 @@ class ModelTrainer:
         try:
             self.trainer.save_model()
             logger.info("Model saved successfully")
+
+            # Explicitly save tokenizer with special tokens added during training
+            # This ensures tokenizer is available for inference and HF upload
+            logger.info(f"Saving tokenizer to {self.output_dir}")
+            self.tokenizer.save_pretrained(self.output_dir)
+            logger.info(f"Tokenizer saved successfully (vocab size: {len(self.tokenizer)})")
         except Exception as e:
-            logger.error(f"Failed to save model: {e}")
+            logger.error(f"Failed to save model or tokenizer: {e}")
             raise
 
     def cleanup(self) -> None:

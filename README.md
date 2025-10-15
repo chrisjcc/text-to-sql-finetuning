@@ -519,6 +519,46 @@ This codebase uses the **latest TRL API** which requires:
 
 These changes ensure compatibility with the latest versions of `transformers`, `trl`, and `peft` libraries.
 
+## 📦 Model Artifacts
+
+### What Gets Saved During Training
+
+When training completes, the following artifacts are saved to the `output_dir` (default: `code-llama-3-1-8b-text-to-sql`):
+
+**Model Files:**
+- `adapter_config.json` - LoRA adapter configuration
+- `adapter_model.safetensors` - LoRA adapter weights
+- `README.md` - Auto-generated model card (for uploads)
+
+**Tokenizer Files (Critical for Inference):**
+- `tokenizer.json` - Tokenizer vocabulary and merges
+- `tokenizer_config.json` - Tokenizer configuration
+- `special_tokens_map.json` - Special tokens (including chat format tokens)
+- Additional files depending on tokenizer type (e.g., `vocab.json`, `merges.txt`)
+
+**Why Tokenizer Saving Matters:**
+
+The tokenizer is explicitly saved using `tokenizer.save_pretrained()` after training because:
+
+1. **Special Tokens:** Two special tokens are added during training via `setup_chat_format()`. These must be saved for inference.
+2. **Token Mapping:** The tokenizer maps text to token IDs. Without the correct tokenizer, inference produces incorrect results.
+3. **Hugging Face Upload:** The upload script (`scripts/upload_to_hf.py`) expects tokenizer files to be present in the output directory.
+4. **Reproducibility:** Ensures anyone using your model has the exact tokenizer configuration used during training.
+
+**Verification:**
+
+After training, verify tokenizer files exist:
+
+```bash
+ls -la code-llama-3-1-8b-text-to-sql/tokenizer*
+# Should show:
+# tokenizer.json
+# tokenizer_config.json
+# special_tokens_map.json
+```
+
+If tokenizer files are missing, the model upload will fail or the model will be unusable for inference.
+
 ## 📄 License
 
 Apache-2.0 license - see LICENSE file for details
