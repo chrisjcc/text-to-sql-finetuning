@@ -44,7 +44,7 @@ def format_dataset_for_training(
             example["messages"],
             tokenize=False,   # don't tokenize here; leave for trainer
             max_length=max_seq_length,  # truncate to desired length
-            add_generation_prompt=True
+            add_generation_prompt=False  # FIXED: Don't add generation prompt when messages include assistant response
         )
         return {"text": formatted_text}
 
@@ -54,9 +54,17 @@ def format_dataset_for_training(
         desc="Applying chat template"
     )
 
+    # Log sample to verify correct formatting
     sample = formatted_dataset[0]['text']
     token_len = len(tokenizer(sample).input_ids)
     logger.info(f"Sample formatted text ({token_len} tokens):\n{sample[:500]}...")
+
+    # Verification: Check that training format is correct (should NOT end with extra 'assistant' marker)
+    if sample.strip().endswith('assistant'):
+        logger.warning("⚠️  Training sample ends with 'assistant' marker - this may indicate incorrect formatting!")
+    else:
+        logger.info("✓ Training format verified: no trailing 'assistant' marker")
+
     return formatted_dataset
 
 
