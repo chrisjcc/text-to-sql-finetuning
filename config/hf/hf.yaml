@@ -1,7 +1,7 @@
 # ============================================================================
 # config/hf/hf.yaml
 # ============================================================================
-model_id: meta-llama/Meta-Llama-3.1-8B
+model_id: meta-llama/Llama-3.1-8B
 token: ${oc.env:HF_TOKEN,null}
 username: chrisjcc
 
@@ -14,9 +14,9 @@ upload:
   upload_dataset: true
 
   # Repository naming
-  adapter_repo_suffix: "-text2sql-adapter"
-  merged_repo_suffix: "-text2sql-merged"
-  dataset_repo_name: "text2sql-spider-dataset"
+  adapter_repo_suffix: "-text-to-sql-adapter"
+  merged_repo_suffix: "-text-to-sql-merged"
+  dataset_repo_name: "text-to-sql-spider-dataset"
 
   # Model card metadata
   author_name: "Christian Contreras Campana"
