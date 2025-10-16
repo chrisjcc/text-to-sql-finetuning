@@ -3,7 +3,7 @@
 # ============================================================================
 # Model configuration
 model_path: "meta-llama/Llama-3.1-8B-Instruct"  # Base model path or HuggingFace ID
-adapter_path: "chrisjcc/Llama-3.1-8B-text-to-sql-adapter"  # Set to checkpoint path for fine-tuned adapter model
+adapter_path: "chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter"  # Set to checkpoint path for fine-tuned adapter model
 # Examples:
 #   adapter_path: "${training.output_dir}/checkpoint-500"
 #   adapter_path: "./outputs/code-llama-3-1-8b-text-to-sql/checkpoint-1000"  # Example: local adapter
