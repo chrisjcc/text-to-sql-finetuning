@@ -28,7 +28,8 @@ training = [
 
 # For evaluation tasks
 evaluation = [
-    "evaluate>=0.4.2,<1.0"
+    "evaluate>=0.4.2,<1.0",
+    "sqlparse>=0.5.0,<1.0"
 ]
 
 # For development: linting, formatting, testing

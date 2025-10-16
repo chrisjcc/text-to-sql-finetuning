@@ -11,7 +11,7 @@ import sys
 import re
 from random import choice
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import json
 from datetime import datetime
 import logging
@@ -24,6 +24,9 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.utils import get_original_cwd
 from transformers import StoppingCriteria, StoppingCriteriaList
+import sqlparse
+from sqlparse.sql import Statement, Token, TokenList
+from sqlparse.tokens import Keyword, Name, Punctuation
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -192,6 +195,236 @@ def calculate_structural_similarity(pred: str, truth: str) -> float:
         score += 1
 
     return score / total_checks
+
+
+# ----------------------------------------
+# Parsing Validation
+# ----------------------------------------
+
+def validate_sql_parsing(sql: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate SQL syntax using sqlparse.
+
+    Args:
+        sql: SQL query string to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+        - is_valid: True if SQL is syntactically valid
+        - error_message: Error description if invalid, None otherwise
+    """
+    if not sql or not sql.strip():
+        return False, "Empty SQL string"
+
+    try:
+        # Parse the SQL
+        parsed = sqlparse.parse(sql)
+
+        # Check if parsing succeeded
+        if not parsed:
+            return False, "Failed to parse SQL"
+
+        # Check if we have at least one statement
+        if len(parsed) == 0:
+            return False, "No SQL statement found"
+
+        # Check if the statement has tokens
+        statement = parsed[0]
+        if not statement.tokens:
+            return False, "Empty statement"
+
+        # Check for basic SQL keywords to ensure it's not just whitespace/comments
+        has_keyword = False
+        for token in statement.tokens:
+            if token.ttype in (Keyword.DML, Keyword.DDL, Keyword):
+                has_keyword = True
+                break
+            # Also check nested tokens
+            if hasattr(token, 'tokens'):
+                for subtoken in token.tokens:
+                    if subtoken.ttype in (Keyword.DML, Keyword.DDL, Keyword):
+                        has_keyword = True
+                        break
+
+        if not has_keyword:
+            return False, "No SQL keywords found"
+
+        return True, None
+
+    except Exception as e:
+        return False, f"Parse error: {str(e)}"
+
+
+# ----------------------------------------
+# Logical Form Accuracy
+# ----------------------------------------
+
+def extract_parsed_structure(sql: str) -> Optional[Dict[str, Any]]:
+    """
+    Extract detailed structure from parsed SQL for comparison.
+
+    Args:
+        sql: SQL query string
+
+    Returns:
+        Dictionary containing parsed structure components, or None if parsing fails
+    """
+    try:
+        parsed = sqlparse.parse(sql)
+        if not parsed:
+            return None
+
+        statement = parsed[0]
+
+        # Extract structure components
+        structure = {
+            'select_columns': [],
+            'from_tables': [],
+            'where_conditions': [],
+            'join_clauses': [],
+            'group_by_columns': [],
+            'order_by_columns': [],
+            'having_conditions': [],
+            'operations': [],
+        }
+
+        # Flatten and normalize the SQL
+        formatted = sqlparse.format(sql, keyword_case='upper', strip_comments=True)
+        formatted_upper = formatted.upper()
+
+        # Extract SELECT columns
+        if 'SELECT' in formatted_upper:
+            select_part = formatted_upper.split('SELECT')[1]
+            if 'FROM' in select_part:
+                select_part = select_part.split('FROM')[0]
+            # Clean and split columns
+            columns = [c.strip() for c in select_part.split(',')]
+            structure['select_columns'] = columns
+
+        # Extract FROM tables
+        if 'FROM' in formatted_upper:
+            from_part = formatted_upper.split('FROM')[1]
+            # Stop at next clause
+            for clause in ['WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'JOIN']:
+                if clause in from_part:
+                    from_part = from_part.split(clause)[0]
+                    break
+            tables = [t.strip() for t in from_part.split(',') if t.strip()]
+            structure['from_tables'] = tables
+
+        # Extract WHERE conditions
+        if 'WHERE' in formatted_upper:
+            where_part = formatted_upper.split('WHERE')[1]
+            for clause in ['GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT']:
+                if clause in where_part:
+                    where_part = where_part.split(clause)[0]
+                    break
+            structure['where_conditions'] = [where_part.strip()]
+
+        # Check for JOIN operations
+        join_types = ['INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN', 'JOIN']
+        for join_type in join_types:
+            if join_type in formatted_upper:
+                structure['join_clauses'].append(join_type)
+
+        # Extract GROUP BY columns
+        if 'GROUP BY' in formatted_upper:
+            group_part = formatted_upper.split('GROUP BY')[1]
+            for clause in ['ORDER BY', 'HAVING', 'LIMIT']:
+                if clause in group_part:
+                    group_part = group_part.split(clause)[0]
+                    break
+            columns = [c.strip() for c in group_part.split(',')]
+            structure['group_by_columns'] = columns
+
+        # Extract ORDER BY columns
+        if 'ORDER BY' in formatted_upper:
+            order_part = formatted_upper.split('ORDER BY')[1]
+            if 'LIMIT' in order_part:
+                order_part = order_part.split('LIMIT')[0]
+            columns = [c.strip() for c in order_part.split(',')]
+            structure['order_by_columns'] = columns
+
+        # Extract HAVING conditions
+        if 'HAVING' in formatted_upper:
+            having_part = formatted_upper.split('HAVING')[1]
+            for clause in ['ORDER BY', 'LIMIT']:
+                if clause in having_part:
+                    having_part = having_part.split(clause)[0]
+                    break
+            structure['having_conditions'] = [having_part.strip()]
+
+        # Extract main operations (SELECT, INSERT, UPDATE, DELETE, etc.)
+        for token in statement.tokens:
+            if token.ttype in (Keyword.DML, Keyword.DDL):
+                structure['operations'].append(token.value.upper())
+
+        return structure
+
+    except Exception:
+        return None
+
+
+def compare_logical_forms(pred_sql: str, truth_sql: str) -> Tuple[bool, float, Dict[str, Any]]:
+    """
+    Compare the logical form (parsed structure) of predicted and ground truth SQL.
+
+    Args:
+        pred_sql: Predicted SQL query
+        truth_sql: Ground truth SQL query
+
+    Returns:
+        Tuple of (exact_match, similarity_score, comparison_details)
+        - exact_match: True if structures match exactly
+        - similarity_score: Partial credit score (0.0 to 1.0)
+        - comparison_details: Dictionary with detailed comparison results
+    """
+    pred_struct = extract_parsed_structure(pred_sql)
+    truth_struct = extract_parsed_structure(truth_sql)
+
+    # If either fails to parse, return failure
+    if pred_struct is None or truth_struct is None:
+        return False, 0.0, {
+            'error': 'Failed to parse one or both SQL queries',
+            'pred_parsed': pred_struct is not None,
+            'truth_parsed': truth_struct is not None,
+        }
+
+    # Compare components
+    comparison = {
+        'operations_match': set(pred_struct['operations']) == set(truth_struct['operations']),
+        'select_columns_match': set(pred_struct['select_columns']) == set(truth_struct['select_columns']),
+        'from_tables_match': set(pred_struct['from_tables']) == set(truth_struct['from_tables']),
+        'where_match': pred_struct['where_conditions'] == truth_struct['where_conditions'],
+        'join_match': set(pred_struct['join_clauses']) == set(truth_struct['join_clauses']),
+        'group_by_match': set(pred_struct['group_by_columns']) == set(truth_struct['group_by_columns']),
+        'order_by_match': set(pred_struct['order_by_columns']) == set(truth_struct['order_by_columns']),
+        'having_match': pred_struct['having_conditions'] == truth_struct['having_conditions'],
+    }
+
+    # Calculate similarity score (weighted)
+    weights = {
+        'operations_match': 0.20,  # 20% - operation type is critical
+        'select_columns_match': 0.20,  # 20% - columns are important
+        'from_tables_match': 0.20,  # 20% - tables are critical
+        'where_match': 0.15,  # 15% - conditions matter
+        'join_match': 0.10,  # 10% - joins are important
+        'group_by_match': 0.05,  # 5%
+        'order_by_match': 0.05,  # 5%
+        'having_match': 0.05,  # 5%
+    }
+
+    similarity_score = sum(
+        weights[key] for key, matches in comparison.items() if matches
+    )
+
+    exact_match = all(comparison.values())
+
+    comparison['pred_structure'] = pred_struct
+    comparison['truth_structure'] = truth_struct
+    comparison['similarity_score'] = similarity_score
+
+    return exact_match, similarity_score, comparison
 
 
 # ----------------------------------------
@@ -379,15 +612,45 @@ class ModelEvaluator:
         structural_similarities = [calculate_structural_similarity(p, t) for p, t in zip(predictions, ground_truths)]
         avg_structural_similarity = sum(structural_similarities) / len(structural_similarities) if structural_similarities else 0.0
 
+        # NEW: Parsing validation using sqlparse
+        parsing_results = [validate_sql_parsing(p) for p in predictions]
+        valid_parsed_count = sum(1 for is_valid, _ in parsing_results if is_valid)
+        valid_parsed_rate = valid_parsed_count / len(predictions) if predictions else 0.0
+
+        # NEW: Logical form accuracy (only on valid parsed SQL)
+        logical_form_comparisons = []
+        logical_form_exact_matches = 0
+        logical_form_similarities = []
+
+        for i, (pred, truth) in enumerate(zip(predictions, ground_truths)):
+            is_valid, _ = parsing_results[i]
+            if is_valid:
+                # Only compare logical forms if prediction parsed successfully
+                exact_match, similarity, comparison = compare_logical_forms(pred, truth)
+                logical_form_comparisons.append(comparison)
+                if exact_match:
+                    logical_form_exact_matches += 1
+                logical_form_similarities.append(similarity)
+            else:
+                # Invalid SQL gets 0 score
+                logical_form_similarities.append(0.0)
+
+        logical_form_accuracy = logical_form_exact_matches / valid_parsed_count if valid_parsed_count > 0 else 0.0
+        avg_logical_form_similarity = sum(logical_form_similarities) / len(logical_form_similarities) if logical_form_similarities else 0.0
+
         # Collect error examples
         error_examples = []
         for idx, (pred, truth, match) in enumerate(zip(predictions, ground_truths, matches)):
             if not match and len(error_examples) < 5:  # Store up to 5 error examples
+                is_valid, error_msg = parsing_results[idx]
                 error_examples.append({
                     "question": eval_samples[idx]["messages"][-2]["content"],
                     "predicted": pred,
                     "ground_truth": truth,
-                    "structural_similarity": structural_similarities[idx]
+                    "structural_similarity": structural_similarities[idx],
+                    "parsing_valid": is_valid,
+                    "parsing_error": error_msg,
+                    "logical_form_similarity": logical_form_similarities[idx] if idx < len(logical_form_similarities) else 0.0
                 })
 
         return {
@@ -400,6 +663,15 @@ class ModelEvaluator:
             "valid_sql_count": valid_sql_count,
             "valid_sql_percentage": valid_sql_count / len(predictions),
             "avg_structural_similarity": avg_structural_similarity,
+            # NEW: Parsing validation metrics
+            "parsing_valid_count": valid_parsed_count,
+            "parsing_valid_rate": valid_parsed_rate,
+            "parsing_invalid_count": len(predictions) - valid_parsed_count,
+            # NEW: Logical form accuracy metrics
+            "logical_form_exact_matches": logical_form_exact_matches,
+            "logical_form_accuracy": logical_form_accuracy,
+            "avg_logical_form_similarity": avg_logical_form_similarity,
+            # Existing fields
             "sample_predictions": predictions[:10],
             "sample_ground_truths": ground_truths[:10],
             "error_examples": error_examples,
@@ -576,6 +848,15 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Accuracy (relaxed)':<30} {baseline.get('relaxed_accuracy', 0)*100:>6.2f}% {'':<13} {finetuned.get('relaxed_accuracy', 0)*100:>6.2f}% {'':<13} {(finetuned.get('relaxed_accuracy', 0) - baseline.get('relaxed_accuracy', 0))*100:>+6.2f}%")
         print(f"{'Correct predictions':<30} {baseline['num_correct']:>6} / {baseline['num_samples']:<6} {finetuned['num_correct']:>6} / {finetuned['num_samples']:<6} {improvement['correct_gain']:>+6}")
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect'] - baseline['num_incorrect']:>+6}")
+        print(f"{'-'*80}")
+        print(f"{'Parsing valid (sqlparse) %':<30} {baseline.get('parsing_valid_rate', 0)*100:>6.2f}% {'':<13} {finetuned.get('parsing_valid_rate', 0)*100:>6.2f}% {'':<13} {(finetuned.get('parsing_valid_rate', 0) - baseline.get('parsing_valid_rate', 0))*100:>+6.2f}%")
+        print(f"{'Parsing valid count':<30} {baseline.get('parsing_valid_count', 0):>6} / {baseline['num_samples']:<6} {finetuned.get('parsing_valid_count', 0):>6} / {finetuned['num_samples']:<6} {finetuned.get('parsing_valid_count', 0) - baseline.get('parsing_valid_count', 0):>+6}")
+        print(f"{'Parsing invalid count':<30} {baseline.get('parsing_invalid_count', 0):>6} {'':<13} {finetuned.get('parsing_invalid_count', 0):>6} {'':<13} {finetuned.get('parsing_invalid_count', 0) - baseline.get('parsing_invalid_count', 0):>+6}")
+        print(f"{'-'*80}")
+        print(f"{'Logical form accuracy':<30} {baseline.get('logical_form_accuracy', 0)*100:>6.2f}% {'':<13} {finetuned.get('logical_form_accuracy', 0)*100:>6.2f}% {'':<13} {(finetuned.get('logical_form_accuracy', 0) - baseline.get('logical_form_accuracy', 0))*100:>+6.2f}%")
+        print(f"{'Logical form exact matches':<30} {baseline.get('logical_form_exact_matches', 0):>6} / {baseline.get('parsing_valid_count', 0):<6} {finetuned.get('logical_form_exact_matches', 0):>6} / {finetuned.get('parsing_valid_count', 0):<6} {finetuned.get('logical_form_exact_matches', 0) - baseline.get('logical_form_exact_matches', 0):>+6}")
+        print(f"{'Avg logical form similarity':<30} {baseline.get('avg_logical_form_similarity', 0)*100:>6.2f}% {'':<13} {finetuned.get('avg_logical_form_similarity', 0)*100:>6.2f}% {'':<13} {(finetuned.get('avg_logical_form_similarity', 0) - baseline.get('avg_logical_form_similarity', 0))*100:>+6.2f}%")
+        print(f"{'-'*80}")
         print(f"{'Valid SQL %':<30} {baseline.get('valid_sql_percentage', 0)*100:>6.2f}% {'':<13} {finetuned.get('valid_sql_percentage', 0)*100:>6.2f}% {'':<13} {(finetuned.get('valid_sql_percentage', 0) - baseline.get('valid_sql_percentage', 0))*100:>+6.2f}%")
         print(f"{'Avg structural similarity':<30} {baseline.get('avg_structural_similarity', 0)*100:>6.2f}% {'':<13} {finetuned.get('avg_structural_similarity', 0)*100:>6.2f}% {'':<13} {(finetuned.get('avg_structural_similarity', 0) - baseline.get('avg_structural_similarity', 0))*100:>+6.2f}%")
         print(f"{'-'*80}")
@@ -596,6 +877,15 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Accuracy (relaxed)':<30} {baseline.get('relaxed_accuracy', 0)*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {baseline['num_correct']:>6} / {baseline['num_samples']}")
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6}")
+        print(f"{'-'*80}")
+        print(f"{'Parsing valid (sqlparse) %':<30} {baseline.get('parsing_valid_rate', 0)*100:>6.2f}%")
+        print(f"{'Parsing valid count':<30} {baseline.get('parsing_valid_count', 0):>6} / {baseline['num_samples']}")
+        print(f"{'Parsing invalid count':<30} {baseline.get('parsing_invalid_count', 0):>6}")
+        print(f"{'-'*80}")
+        print(f"{'Logical form accuracy':<30} {baseline.get('logical_form_accuracy', 0)*100:>6.2f}%")
+        print(f"{'Logical form exact matches':<30} {baseline.get('logical_form_exact_matches', 0):>6} / {baseline.get('parsing_valid_count', 0)}")
+        print(f"{'Avg logical form similarity':<30} {baseline.get('avg_logical_form_similarity', 0)*100:>6.2f}%")
+        print(f"{'-'*80}")
         print(f"{'Valid SQL %':<30} {baseline.get('valid_sql_percentage', 0)*100:>6.2f}%")
         print(f"{'Avg structural similarity':<30} {baseline.get('avg_structural_similarity', 0)*100:>6.2f}%")
 
@@ -607,6 +897,15 @@ def print_comparative_summary(results: Dict[str, Any]):
         print(f"{'Accuracy (relaxed)':<30} {finetuned.get('relaxed_accuracy', 0)*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {finetuned['num_correct']:>6} / {finetuned['num_samples']}")
         print(f"{'Incorrect predictions':<30} {finetuned['num_incorrect']:>6}")
+        print(f"{'-'*80}")
+        print(f"{'Parsing valid (sqlparse) %':<30} {finetuned.get('parsing_valid_rate', 0)*100:>6.2f}%")
+        print(f"{'Parsing valid count':<30} {finetuned.get('parsing_valid_count', 0):>6} / {finetuned['num_samples']}")
+        print(f"{'Parsing invalid count':<30} {finetuned.get('parsing_invalid_count', 0):>6}")
+        print(f"{'-'*80}")
+        print(f"{'Logical form accuracy':<30} {finetuned.get('logical_form_accuracy', 0)*100:>6.2f}%")
+        print(f"{'Logical form exact matches':<30} {finetuned.get('logical_form_exact_matches', 0):>6} / {finetuned.get('parsing_valid_count', 0)}")
+        print(f"{'Avg logical form similarity':<30} {finetuned.get('avg_logical_form_similarity', 0)*100:>6.2f}%")
+        print(f"{'-'*80}")
         print(f"{'Valid SQL %':<30} {finetuned.get('valid_sql_percentage', 0)*100:>6.2f}%")
         print(f"{'Avg structural similarity':<30} {finetuned.get('avg_structural_similarity', 0)*100:>6.2f}%")
 
