@@ -1,0 +1,224 @@
+{
+  "evaluation_config": {
+    "num_samples": 1000,
+    "batch_size": 8,
+    "temperature": 0.0,
+    "base_model": "meta-llama/Llama-3.1-8B-Instruct",
+    "adapter_path": "chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter"
+  },
+  "baseline": {
+    "accuracy": 0.0,
+    "relaxed_accuracy": 0.0,
+    "num_samples": 1000,
+    "num_correct": 0,
+    "num_relaxed_correct": 0,
+    "num_incorrect": 1000,
+    "valid_sql_count": 851,
+    "valid_sql_percentage": 0.851,
+    "avg_structural_similarity": 0.6381666666666649,
+    "sample_predictions": [
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT"
+    ],
+    "sample_ground_truths": [
+      "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
+      "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
+      "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
+      "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
+      "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
+      "SELECT MIN(bronze) FROM table_name_34 WHERE total = 4 AND gold < 1",
+      "SELECT score FROM table_name_51 WHERE player = \"bob tway\"",
+      "SELECT first_name, last_name FROM employees WHERE department_id = 70 OR department_id = 90",
+      "SELECT service FROM table_name_96 WHERE origin_of_programming = \"india\" AND genre = \"general\" AND network = \"zee variasi\"",
+      "SELECT official_name FROM table_name_63 WHERE census_ranking = \"1,229 of 5,008\""
+    ],
+    "error_examples": [
+      {
+        "question": "What visiting team has a record of 4-3?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "What round has Team #2 Gomel?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "What city of license has a value of k293bg for its call sign?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "How many bronze medals were won when the total was larger than 2 and the more than 2 gold medals were won?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "I want the constructor for grid less than 20 and Laps of 6",
+        "predicted": "",
+        "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
+        "structural_similarity": 0.5
+      }
+    ],
+    "timestamp": "2025-10-16T15:44:32.471155"
+  },
+  "fine_tuned": {
+    "accuracy": 0.0,
+    "relaxed_accuracy": 0.0,
+    "num_samples": 1000,
+    "num_correct": 0,
+    "num_relaxed_correct": 0,
+    "num_incorrect": 1000,
+    "valid_sql_count": 909,
+    "valid_sql_percentage": 0.909,
+    "avg_structural_similarity": 0.6478333333333316,
+    "sample_predictions": [
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT",
+      "SELECT"
+    ],
+    "sample_ground_truths": [
+      "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
+      "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
+      "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
+      "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
+      "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
+      "SELECT MIN(bronze) FROM table_name_34 WHERE total = 4 AND gold < 1",
+      "SELECT score FROM table_name_51 WHERE player = \"bob tway\"",
+      "SELECT first_name, last_name FROM employees WHERE department_id = 70 OR department_id = 90",
+      "SELECT service FROM table_name_96 WHERE origin_of_programming = \"india\" AND genre = \"general\" AND network = \"zee variasi\"",
+      "SELECT official_name FROM table_name_63 WHERE census_ranking = \"1,229 of 5,008\""
+    ],
+    "error_examples": [
+      {
+        "question": "What visiting team has a record of 4-3?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "What round has Team #2 Gomel?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "What city of license has a value of k293bg for its call sign?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "How many bronze medals were won when the total was larger than 2 and the more than 2 gold medals were won?",
+        "predicted": "SELECT",
+        "ground_truth": "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
+        "structural_similarity": 0.6666666666666666
+      },
+      {
+        "question": "I want the constructor for grid less than 20 and Laps of 6",
+        "predicted": "",
+        "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
+        "structural_similarity": 0.5
+      }
+    ],
+    "timestamp": "2025-10-16T15:44:42.610067"
+  },
+  "improvement": {
+    "absolute_improvement": 0.0,
+    "relative_improvement_pct": 0,
+    "correct_gain": 0
+  },
+  "config": {
+    "hf": {
+      "model_id": "meta-llama/Llama-3.1-8B-Instruct",
+      "token": "REDACTED",
+      "username": "chrisjcc",
+      "setup_chat_format": false,
+      "force_chat_setup": false,
+      "upload": {
+        "push_to_hub": true,
+        "upload_adapter": true,
+        "upload_merged": false,
+        "upload_dataset": true,
+        "adapter_repo_suffix": "-text-to-sql-adapter",
+        "merged_repo_suffix": "-text-to-sql-merged",
+        "dataset_repo_name": "text-to-sql-spider-dataset",
+        "author_name": "Christian Contreras Campana",
+        "license": "apache-2.0",
+        "language": "en",
+        "include_training_args": true,
+        "commit_message": "Upload supervised-fine-tuned text-to-SQL model"
+      }
+    },
+    "dataset": {
+      "name": "b-mc2/sql-create-context",
+      "train_samples": 20000,
+      "test_samples": 2500,
+      "train_dataset_path": "data/train_dataset.json",
+      "test_dataset_path": "data/test_dataset.json"
+    },
+    "wandb": {
+      "enable": true,
+      "project": "text-to-sql-finetuning",
+      "api_key": "REDACTED"
+    },
+    "training": {
+      "resume_from_checkpoint": false,
+      "output_dir": "Llama-3.1-8B-text-to-sql-adapter",
+      "num_train_epochs": 5,
+      "per_device_train_batch_size": 1,
+      "gradient_accumulation_steps": 8,
+      "learning_rate": 5e-05,
+      "max_seq_length": 2048,
+      "max_grad_norm": 1.0,
+      "warmup_ratio": 0.03,
+      "logging_steps": 10,
+      "lora_alpha": 32,
+      "lora_dropout": 0.1,
+      "lora_r": 16
+    },
+    "evaluation": {
+      "model_path": "meta-llama/Llama-3.1-8B-Instruct",
+      "adapter_path": "chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter",
+      "num_eval_samples": 1000,
+      "batch_size": 8,
+      "temperature": 0.0,
+      "max_new_tokens": 128,
+      "skip_baseline": false,
+      "num_examples": 3,
+      "save_predictions": true
+    },
+    "inference": {
+      "mode": "interactive",
+      "max_new_tokens": 512,
+      "temperature": 0.0,
+      "question": null,
+      "context": null,
+      "batch_file": null,
+      "output_file": "inference_outputs.jsonl"
+    },
+    "logging": {
+      "level": "INFO",
+      "log_dir": "logs"
+    }
+  }
+}
