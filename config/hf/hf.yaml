@@ -5,6 +5,12 @@ model_id: meta-llama/Llama-3.1-8B-Instruct
 token: ${oc.env:HF_TOKEN,null}
 username: chrisjcc
 
+# Model setup configuration
+# Set setup_chat_format to false for Instruct models that already have chat templates
+# Set to true for base models that need chat template setup
+setup_chat_format: false  # Llama-3.1-8B-Instruct already has a chat template
+force_chat_setup: false    # Set to true to force re-applying chat template (not recommended)
+
 # Upload configuration
 upload:
   # What to upload
