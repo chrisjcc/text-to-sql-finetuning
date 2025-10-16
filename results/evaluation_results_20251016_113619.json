@@ -1,0 +1,202 @@
+{
+  "evaluation_config": {
+    "num_samples": 1000,
+    "batch_size": 8,
+    "temperature": 0.0,
+    "base_model": "meta-llama/Llama-3.1-8B",
+    "adapter_path": "chrisjcc/Llama-3.1-8B-text-to-sql-adapter"
+  },
+  "baseline": {
+    "accuracy": 0.0,
+    "num_samples": 1000,
+    "num_correct": 0,
+    "num_incorrect": 1000,
+    "sample_predictions": [
+      "I am an Assistant. It is a wind to a knowledge I seek. Thus I am all that all astronomy compacting all into a word. Ask again on April 27th at LearningMagazine.org.uk/Knowledge quest. Follow astrology on Twitter @DaneLillyand #astrolife. Contact Linda F. Williams at castor@gmx.com.\n#astrolife\nAstrology: What's in a name? This column tells you the astrosignificance of your name. Here you can find lots of themes on astrology - www.astonables.co.uk/2011/04/what-is-in-name.html",
+      "What is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"? Marilyn Monroe\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"",
+      "I am an assistant to the",
+      "What is the average number of golds in athletics associated with over 42 silvers?]\u200f",
+      "Which assistant do you have?\nWhich assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant",
+      "The assistant is a machine learning algorithm which is shown to give a high performance in predicting the probability of default of clients in credit scoring.\nIt can be used for making predictions with more than one target, and it has been compared to some other methods already.\nIn a previous work [1], we have proposed a new method for estimating the probability of default of clients in credit scoring. The method is based on the use of neural networks trained by backpropagation. In this paper, we present an extension of that method, where the neural network is trained using a genetic algorithm. We compare the results obtained with those obtained with the original method,",
+      "You are a assistant to the text-to-SQL query translator. You can translate from the provided text. Only give answers if they are correct, otherwise the answer will be marked as wrong or even though it is possible to provide multiple correct answers, only one of them is considered correct.\nSCHEMA:\nCREATE TABLE table_name_11 (date VARCHAR, away_team VARCHAR)]\u200f\nWhen st kilda played as the Away team which date was that?]\u200f\n]\u200fassistant\nYou are an assistant to the text-to-SQL query translator. You can help by providing the correct answer to the question asked. Only give answers if they are correct",
+      "For entries with more than 28 played, with 45 goals against and points 1 of 33, what is the average drawn?]\u200f",
+      "Matt Allen's sail number is 25595209_1.\nWhat is Matt Allen's skipper?]\u200f\nMatt Allen's skipper is 25595209_2.\nWhat is Matt Allen's sail number?]\u200f\nMatt Allen's sail number is 25595209_3.\nWhat is Matt Allen's skipper?]\u200f\nMatt Allen's skipper is 25595209_4.\nWhat is Matt Allen's sail number?]\u200f\nMatt Allen's sail number is 25595209_5.\nWhat is Matt Allen's skipper?]\u200f\nMatt Allen's skipper is 25595209_6.",
+      "I am a bot, designed to provide helpful information and services.\nHow do I update the data in your description?\nWatch this space - we'll be adding support for customising schema soon!\n#query\n#sql\n#database\n#schema\n#table\n#tables\n#column\n#columns\n#row\n#rows\n#data\n#description\n#update\n#help\n#bot\n#assistant\n#information\n#service\n#support\n#adding\n#soon\n#space\n#will\n#be\n#adding\n#support\n#customizing\n#schema\n#soon\n#watch"
+    ],
+    "sample_ground_truths": [
+      "SELECT home FROM table_name_11 WHERE date = \"16 april 2008\"",
+      "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\"",
+      "SELECT country FROM table_name_17 WHERE score = 72 - 66 - 72 = 210",
+      "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42",
+      "SELECT club FROM table_name_36 WHERE head_coach = \"casemiro mior\"",
+      "SELECT COUNT(high_points) FROM table_23186738_6 WHERE record = \"5-17\"",
+      "SELECT date FROM table_name_10 WHERE away_team = \"st kilda\"",
+      "SELECT AVG(drawn) FROM table_name_45 WHERE points_1 = \"33\" AND goals_against = 45 AND played < 28",
+      "SELECT sail_number FROM table_25595209_1 WHERE skipper = \"Matt Allen\"",
+      "SELECT venue FROM table_name_74 WHERE home_team = \"melbourne\""
+    ],
+    "error_examples": [
+      {
+        "question": "Name the home for 16 april 2008",
+        "predicted": "I am an Assistant. It is a wind to a knowledge I seek. Thus I am all that all astronomy compacting all into a word. Ask again on April 27th at LearningMagazine.org.uk/Knowledge quest. Follow astrology on Twitter @DaneLillyand #astrolife. Contact Linda F. Williams at castor@gmx.com.\n#astrolife\nAstrology: What's in a name? This column tells you the astrosignificance of your name. Here you can find lots of themes on astrology - www.astonables.co.uk/2011/04/what-is-in-name.html",
+        "ground_truth": "SELECT home FROM table_name_11 WHERE date = \"16 april 2008\""
+      },
+      {
+        "question": "What is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu (4)\"?",
+        "predicted": "What is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"? Marilyn Monroe\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu\"?\nWhat is the highest Game, when Team is \"",
+        "ground_truth": "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\""
+      },
+      {
+        "question": "What Country had a Player with a Score of 72-66-72=210?",
+        "predicted": "I am an assistant to the",
+        "ground_truth": "SELECT country FROM table_name_17 WHERE score = 72 - 66 - 72 = 210"
+      },
+      {
+        "question": "What is the average number of golds in athletics associated with over 42 silvers?",
+        "predicted": "What is the average number of golds in athletics associated with over 42 silvers?]\u200f",
+        "ground_truth": "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42"
+      },
+      {
+        "question": "Head Coach casemiro mior is at which Club?",
+        "predicted": "Which assistant do you have?\nWhich assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant do you have? Which assistant",
+        "ground_truth": "SELECT club FROM table_name_36 WHERE head_coach = \"casemiro mior\""
+      }
+    ],
+    "timestamp": "2025-10-16T11:30:43.379245"
+  },
+  "fine_tuned": {
+    "accuracy": 0.107,
+    "num_samples": 1000,
+    "num_correct": 107,
+    "num_incorrect": 893,
+    "sample_predictions": [
+      "CREATE TABLE table_name_11 (home VARCHAR, date VARCHAR) Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 200",
+      "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\" multer",
+      "SELECT country FROM table_name_17 WHERE score = 72 - 66 - 72 = 210",
+      "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42\u0f0b\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3f\u0f3b\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c",
+      "Which Head Coach has an Assistant of alberto mior? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for",
+      "SELECT COUNT(high_points) FROM table_23186738_6 WHERE record = \"5-17\" Marilyn",
+      "SELECT date FROM table_name_10 WHERE away_team = \"st kilda\" Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz. Marilyn Monroe is a 1953 film directed by Joseph Mankiewicz.",
+      "SELECT AVG(drawn) FROM table_name_45 WHERE points_1 = \"33\" AND goals_against = \"45\" AND played < 28 AND played > 0\u0f0b\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d\u0f0d",
+      "SELECT sail_number FROM table_25595209_1 WHERE skipper = \"Matt Allen\" Marilyn Ryan",
+      "SELECT venue FROM table_name_74 WHERE home_team = \"melbourne\" Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest at this venue. Marilyn Monroe was a guest"
+    ],
+    "sample_ground_truths": [
+      "SELECT home FROM table_name_11 WHERE date = \"16 april 2008\"",
+      "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\"",
+      "SELECT country FROM table_name_17 WHERE score = 72 - 66 - 72 = 210",
+      "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42",
+      "SELECT club FROM table_name_36 WHERE head_coach = \"casemiro mior\"",
+      "SELECT COUNT(high_points) FROM table_23186738_6 WHERE record = \"5-17\"",
+      "SELECT date FROM table_name_10 WHERE away_team = \"st kilda\"",
+      "SELECT AVG(drawn) FROM table_name_45 WHERE points_1 = \"33\" AND goals_against = 45 AND played < 28",
+      "SELECT sail_number FROM table_25595209_1 WHERE skipper = \"Matt Allen\"",
+      "SELECT venue FROM table_name_74 WHERE home_team = \"melbourne\""
+    ],
+    "error_examples": [
+      {
+        "question": "Name the home for 16 april 2008",
+        "predicted": "CREATE TABLE table_name_11 (home VARCHAR, date VARCHAR) Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 2008. Marilyn Manson was the home on 16 April 200",
+        "ground_truth": "SELECT home FROM table_name_11 WHERE date = \"16 april 2008\""
+      },
+      {
+        "question": "What is the highest Game, when Team is \"Celtics\", and when High Assists is \"Hedo T\u00fcrko\u011flu (4)\"?",
+        "predicted": "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\" multer",
+        "ground_truth": "SELECT MAX(game) FROM table_name_34 WHERE team = \"celtics\" AND high_assists = \"hedo t\u00fcrko\u011flu (4)\""
+      },
+      {
+        "question": "What is the average number of golds in athletics associated with over 42 silvers?",
+        "predicted": "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42\u0f0b\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3f\u0f3b\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c\u0f3d\u0f3e\u0f3c\u0f3d\u0f3c\u0f3d\u0f3c",
+        "ground_truth": "SELECT AVG(gold) FROM table_name_66 WHERE sport = \"athletics\" AND silver > 42"
+      },
+      {
+        "question": "Head Coach casemiro mior is at which Club?",
+        "predicted": "Which Head Coach has an Assistant of alberto mior? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for who? Marilyn Minter is the assistant for",
+        "ground_truth": "SELECT club FROM table_name_36 WHERE head_coach = \"casemiro mior\""
+      },
+      {
+        "question": "Name the number of high points for record 5-17",
+        "predicted": "SELECT COUNT(high_points) FROM table_23186738_6 WHERE record = \"5-17\" Marilyn",
+        "ground_truth": "SELECT COUNT(high_points) FROM table_23186738_6 WHERE record = \"5-17\""
+      }
+    ],
+    "timestamp": "2025-10-16T11:36:19.129959"
+  },
+  "improvement": {
+    "absolute_improvement": 0.107,
+    "relative_improvement_pct": 0,
+    "correct_gain": 107
+  },
+  "config": {
+    "hf": {
+      "model_id": "meta-llama/Llama-3.1-8B",
+      "token": "hf_...",
+      "username": "chrisjcc",
+      "upload": {
+        "push_to_hub": true,
+        "upload_adapter": true,
+        "upload_merged": false,
+        "upload_dataset": true,
+        "adapter_repo_suffix": "-text-to-sql-adapter",
+        "merged_repo_suffix": "-text-to-sql-merged",
+        "dataset_repo_name": "text-to-sql-spider-dataset",
+        "author_name": "Christian Contreras Campana",
+        "license": "apache-2.0",
+        "language": "en",
+        "include_training_args": true,
+        "commit_message": "Upload supervised-fine-tuned text-to-SQL model"
+      }
+    },
+    "dataset": {
+      "name": "b-mc2/sql-create-context",
+      "train_samples": 10000,
+      "test_samples": 2500,
+      "train_dataset_path": "data/train_dataset.json",
+      "test_dataset_path": "data/test_dataset.json"
+    },
+    "wandb": {
+      "enable": true,
+      "project": "text-to-sql-finetuning",
+      "api_key": "..."
+    },
+    "training": {
+      "resume_from_checkpoint": false,
+      "output_dir": "Llama-3.1-8B-text-to-sql-adapter",
+      "num_train_epochs": 3,
+      "per_device_train_batch_size": 1,
+      "gradient_accumulation_steps": 8,
+      "learning_rate": 0.0002,
+      "max_seq_length": 2048,
+      "max_grad_norm": 1.0,
+      "warmup_ratio": 0.03,
+      "logging_steps": 10,
+      "lora_alpha": 16,
+      "lora_dropout": 0.05,
+      "lora_r": 8
+    },
+    "evaluation": {
+      "model_path": "meta-llama/Llama-3.1-8B",
+      "adapter_path": "chrisjcc/Llama-3.1-8B-text-to-sql-adapter",
+      "num_eval_samples": 1000,
+      "batch_size": 8,
+      "temperature": 0.0,
+      "max_new_tokens": 128,
+      "skip_baseline": false,
+      "num_examples": 3,
+      "save_predictions": true
+    },
+    "inference": {
+      "mode": "interactive",
+      "max_new_tokens": 512,
+      "temperature": 0.0,
+      "question": null,
+      "context": null,
+      "batch_file": null,
+      "output_file": "inference_outputs.jsonl"
+    },
+    "logging": {
+      "level": "INFO",
+      "log_dir": "logs"
+    }
+  }
+}
