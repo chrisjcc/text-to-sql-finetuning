@@ -13,15 +13,15 @@
     "num_correct": 0,
     "num_relaxed_correct": 0,
     "num_incorrect": 1000,
-    "valid_sql_count": 851,
-    "valid_sql_percentage": 0.851,
-    "avg_structural_similarity": 0.6381666666666649,
+    "valid_sql_count": 938,
+    "valid_sql_percentage": 0.938,
+    "avg_structural_similarity": 0.6526666666666644,
     "sample_predictions": [
       "SELECT",
       "SELECT",
       "SELECT",
       "SELECT",
-      "",
+      "SELECT",
       "SELECT",
       "SELECT",
       "SELECT",
@@ -67,12 +67,12 @@
       },
       {
         "question": "I want the constructor for grid less than 20 and Laps of 6",
-        "predicted": "",
+        "predicted": "SELECT",
         "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
-        "structural_similarity": 0.5
+        "structural_similarity": 0.6666666666666666
       }
     ],
-    "timestamp": "2025-10-16T15:44:32.471155"
+    "timestamp": "2025-10-16T15:58:14.623305"
   },
   "fine_tuned": {
     "accuracy": 0.0,
@@ -81,15 +81,15 @@
     "num_correct": 0,
     "num_relaxed_correct": 0,
     "num_incorrect": 1000,
-    "valid_sql_count": 909,
-    "valid_sql_percentage": 0.909,
-    "avg_structural_similarity": 0.6478333333333316,
+    "valid_sql_count": 1000,
+    "valid_sql_percentage": 1.0,
+    "avg_structural_similarity": 0.6629999999999973,
     "sample_predictions": [
       "SELECT",
       "SELECT",
       "SELECT",
       "SELECT",
-      "",
+      "SELECT",
       "SELECT",
       "SELECT",
       "SELECT",
@@ -135,12 +135,12 @@
       },
       {
         "question": "I want the constructor for grid less than 20 and Laps of 6",
-        "predicted": "",
+        "predicted": "SELECT",
         "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
-        "structural_similarity": 0.5
+        "structural_similarity": 0.6666666666666666
       }
     ],
-    "timestamp": "2025-10-16T15:44:42.610067"
+    "timestamp": "2025-10-16T15:58:24.679167"
   },
   "improvement": {
     "absolute_improvement": 0.0,
@@ -150,7 +150,7 @@
   "config": {
     "hf": {
       "model_id": "meta-llama/Llama-3.1-8B-Instruct",
-      "token": "REDACTED",
+      "token": "hf_...",
       "username": "chrisjcc",
       "setup_chat_format": false,
       "force_chat_setup": false,
@@ -179,7 +179,7 @@
     "wandb": {
       "enable": true,
       "project": "text-to-sql-finetuning",
-      "api_key": "REDACTED"
+      "api_key": "..."
     },
     "training": {
       "resume_from_checkpoint": false,
