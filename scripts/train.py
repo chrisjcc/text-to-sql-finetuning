@@ -58,10 +58,15 @@ def main(cfg: DictConfig):
 
     # Initialize model and tokenizer
     use_flash_attention = cfg.training.get("use_flash_attention", True)
+    setup_chat_format = cfg.hf.get("setup_chat_format", True)
+    force_chat_setup = cfg.hf.get("force_chat_setup", False)
+
     model, tokenizer, _ = initialize_model_for_training(
         model_id=cfg.hf.model_id,
         use_flash_attention=use_flash_attention,
         max_seq_length=cfg.training.max_seq_length,
+        setup_chat_format=setup_chat_format,
+        force_chat_setup=force_chat_setup,
     )
 
     # Configure LoRA if applicable

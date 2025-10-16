@@ -101,7 +101,8 @@ class ModelSetup:
     @staticmethod
     def setup_for_chat(
         model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizer
+        tokenizer: PreTrainedTokenizer,
+        force_setup: bool = False
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Setup model and tokenizer for chat format.
@@ -109,12 +110,27 @@ class ModelSetup:
         Args:
             model: Pre-trained model
             tokenizer: Pre-trained tokenizer
+            force_setup: If True, force setup even if chat template exists (will set to None first)
 
         Returns:
             Tuple of (configured model, configured tokenizer)
         """
         logger.info("Setting up chat format for model and tokenizer")
+
+        # Check if tokenizer already has a chat template
+        has_chat_template = hasattr(tokenizer, "chat_template") and tokenizer.chat_template is not None
+
+        if has_chat_template:
+            if force_setup:
+                logger.warning("Chat template already present, but force_setup=True. Setting to None and re-applying.")
+                tokenizer.chat_template = None
+            else:
+                logger.info("Chat template already present in tokenizer, skipping setup_chat_format()")
+                logger.info("This is expected for Instruct models like Llama-3.1-8B-Instruct")
+                return model, tokenizer
+
         try:
+            logger.info("Applying chat format setup...")
             model, tokenizer = setup_chat_format(model, tokenizer)
             logger.info("Chat format setup completed")
             return model, tokenizer
@@ -356,7 +372,9 @@ def initialize_model_for_training(
     model_id: str,
     use_flash_attention: bool = True,
     max_seq_length: int = 2048,
-    lora_config: LoraConfig = None
+    lora_config: LoraConfig = None,
+    setup_chat_format: bool = True,
+    force_chat_setup: bool = False
 ) -> Tuple[PreTrainedModel, PreTrainedTokenizer, LoraConfig]:
     """
     Convenience function to initialize model for training.
@@ -366,6 +384,9 @@ def initialize_model_for_training(
         use_flash_attention: Whether to attempt Flash Attention 2
         max_seq_length: Maximum sequence length for the model
         lora_config: Optional pre-configured LoRA config
+        setup_chat_format: Whether to setup chat format (default: True)
+                          Set to False for models that already have chat templates (e.g., Instruct models)
+        force_chat_setup: If True, force chat setup even if template exists (default: False)
 
     Returns:
         Tuple of (model, tokenizer, lora_config)
@@ -379,8 +400,11 @@ def initialize_model_for_training(
         max_seq_length
     )
 
-    # Setup chat format
-    model, tokenizer = setup.setup_for_chat(model, tokenizer)
+    # Setup chat format (conditionally)
+    if setup_chat_format:
+        model, tokenizer = setup.setup_for_chat(model, tokenizer, force_setup=force_chat_setup)
+    else:
+        logger.info("Skipping chat format setup (setup_chat_format=False)")
 
     # Create LoRA config if not provided
     if lora_config is None:
