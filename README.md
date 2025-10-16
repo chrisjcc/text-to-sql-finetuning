@@ -312,6 +312,54 @@ Based on the original implementation:
 - **Evaluation accuracy**: ~80% (exact match on 1000 samples)
 - **Model size**: ~4GB (quantized with LoRA adapters)
 
+## 📊 Evaluation Metrics
+
+The evaluation script (`scripts/evaluate.py`) reports comprehensive metrics to assess model performance:
+
+### Core Metrics
+
+1. **Strict Accuracy (Exact Match)**
+   - Original exact string matching after normalization
+   - Compares generated SQL with ground truth using case-insensitive comparison
+   - Normalizes whitespace and removes trailing semicolons
+   - Reports the percentage of predictions that exactly match the expected output
+
+2. **Relaxed Accuracy**
+   - More lenient matching with quote removal
+   - Removes both single and double quotes around values before comparison
+   - Useful for cases where quote style differs but SQL is semantically equivalent
+   - Typically shows higher accuracy than strict matching
+
+3. **Valid SQL Percentage**
+   - Percentage of outputs that look syntactically like SQL
+   - Checks for presence of SQL keywords (SELECT, INSERT, UPDATE, DELETE, CREATE, etc.)
+   - Measures whether the model is generating SQL-like output vs. hallucinating
+   - High percentage indicates the model understands the task format
+
+4. **Average Structural Similarity**
+   - Score between 0.0 and 1.0 measuring structural correctness
+   - Evaluates presence of key SQL components:
+     - SELECT clause
+     - FROM clause
+     - WHERE clause
+     - JOIN operations
+     - GROUP BY clause
+     - ORDER BY clause
+   - Provides partial credit for queries that have correct structure but incorrect details
+   - Useful for understanding if the model grasps SQL structure even when exact match fails
+
+### Usage
+
+Run evaluation to see all metrics:
+
+```bash
+make evaluate
+# Or
+python -m scripts.evaluate
+```
+
+The evaluation outputs a comparative report showing baseline vs. fine-tuned performance across all metrics.
+
 ## 🔧 Advanced Usage
 
 ### Using Makefile Commands
