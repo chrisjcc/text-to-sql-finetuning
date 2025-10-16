@@ -43,15 +43,17 @@ from src.utils import (
 class SQLStoppingCriteria(StoppingCriteria):
     """Custom stopping criteria to prevent hallucinations after SQL generation."""
 
-    def __init__(self, tokenizer, check_window: int = 20):
+    def __init__(self, tokenizer, input_length: int, check_window: int = 20):
         """
         Initialize stopping criteria.
 
         Args:
             tokenizer: The tokenizer to use for decoding
+            input_length: Length of the input prompt (to skip when checking)
             check_window: Number of tokens to check for hallucination markers
         """
         self.tokenizer = tokenizer
+        self.input_length = input_length
         self.check_window = check_window
         # Common words/phrases that indicate the model is hallucinating after SQL
         self.stop_phrases = [
@@ -64,16 +66,25 @@ class SQLStoppingCriteria(StoppingCriteria):
         Check if generation should stop.
 
         Args:
-            input_ids: Generated token IDs
+            input_ids: Full token sequence (input + generated tokens)
             scores: Token scores
 
         Returns:
             True if generation should stop, False otherwise
         """
-        # Decode the latest generated text
-        decoded = self.tokenizer.decode(input_ids[0][-self.check_window:], skip_special_tokens=True)
+        # CRITICAL FIX: Only check the generated tokens, not the input prompt
+        # Get only the newly generated tokens (skip input_length tokens)
+        generated_length = input_ids.shape[1] - self.input_length
 
-        # Stop if we detect hallucination indicators
+        # Don't check if we haven't generated enough tokens yet
+        if generated_length < 5:
+            return False
+
+        # Decode only the generated portion
+        generated_tokens = input_ids[0][self.input_length:]
+        decoded = self.tokenizer.decode(generated_tokens, skip_special_tokens=True)
+
+        # Stop if we detect hallucination indicators in the GENERATED text only
         for phrase in self.stop_phrases:
             if phrase in decoded:
                 return True
@@ -282,8 +293,9 @@ class ModelEvaluator:
         self.model.eval()
         inputs = self.tokenizer(prompts, return_tensors="pt", padding=True).to(self.device)
 
-        # Create stopping criteria to prevent hallucinations
-        stopping_criteria = StoppingCriteriaList([SQLStoppingCriteria(self.tokenizer)])
+        # CRITICAL FIX: Pass input_length to stopping criteria so it only checks generated tokens
+        input_length = inputs['input_ids'].shape[1]
+        stopping_criteria = StoppingCriteriaList([SQLStoppingCriteria(self.tokenizer, input_length)])
 
         with torch.no_grad():
             outputs = self.model.generate(
@@ -307,6 +319,13 @@ class ModelEvaluator:
         generated_tokens = outputs[:, input_length:]
 
         decoded = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+
+        # DEBUG: Log first raw decoded output to understand what's being generated
+        if len(decoded) > 0:
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Raw decoded (first example): {repr(decoded[0][:200])}")
+            logger.debug(f"After extract_sql: {repr(extract_sql(decoded[0]))}")
+
         return [extract_sql(sql) for sql in decoded]
 
     # ----------------------------------------
