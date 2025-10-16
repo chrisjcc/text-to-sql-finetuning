@@ -513,14 +513,6 @@ rm -rf outputs/ .hydra/
 python -c "from omegaconf import OmegaConf; OmegaConf.load('config/config.yaml')"
 ```
 
-## 📚 References
-
-- [QLoRA Paper](https://arxiv.org/abs/2305.14314)
-- [Flash Attention](https://github.com/Dao-AILab/flash-attention)
-- [TRL Documentation](https://huggingface.co/docs/trl)
-- [PEFT Documentation](https://huggingface.co/docs/peft)
-- [Hydra Documentation](https://hydra.cc/docs/intro/)
-
 ## ⚠️ Important Notes
 
 ### Configuration Management with Hydra
@@ -640,6 +632,14 @@ This document reports the evaluation of a fine-tuned adapter (`chrisjcc/Llama-3.
 Relative improvement reported: **+300%** (mathematically correct because baseline was extremely low). This number is potentially misleading; absolute performance remains very low.
 
 ---
+
+## 📚 References
+
+- [QLoRA Paper](https://arxiv.org/abs/2305.14314)
+- [Flash Attention](https://github.com/Dao-AILab/flash-attention)
+- [TRL Documentation](https://huggingface.co/docs/trl)
+- [PEFT Documentation](https://huggingface.co/docs/peft)
+- [Hydra Documentation](https://hydra.cc/docs/intro/)
 
 ## 📄 License
 
