@@ -269,25 +269,19 @@ def extract_sql(generated_text: str) -> str:
     # Prefer up to first semicolon if present
     if ';' in text:
         sql = text.split(';')[0].strip() + ';'
-        # Clean any trailing garbage after semicolon extraction
-        sql = sql.split('\n')[0].strip()
         return sql
 
-    # Stop at first newline to avoid hallucinated continuations
-    # The SQL query should typically be on the first line
-    first_line = text.split('\n')[0].strip()
+    # FIXED: Collect multi-line SQL until we hit hallucination markers or double newlines
+    # SQL queries can span multiple lines, so we need to be careful not to truncate them
 
-    # If first line looks like SQL (contains SELECT, INSERT, UPDATE, DELETE, CREATE)
-    sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'WITH']
-    if any(keyword in first_line.upper() for keyword in sql_keywords):
-        return first_line
+    # Stop at double newline (indicates end of SQL and start of explanation)
+    if '\n\n' in text:
+        text = text.split('\n\n')[0].strip()
 
-    # Otherwise, stop at double newline, triple dash, or '###' separators
-    split_patterns = [r'\n\n', r'\n---\n', r'###']
-    for pat in split_patterns:
-        parts = re.split(pat, text)
-        if len(parts) > 1:
-            return parts[0].strip()
+    # Stop at triple dash or '###' separators
+    for separator in ['\n---\n', '\n###']:
+        if separator in text:
+            text = text.split(separator)[0].strip()
 
-    # Default: return full stripped text
+    # Return the complete multi-line SQL query
     return text.strip()
