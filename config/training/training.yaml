@@ -4,14 +4,14 @@
 # Training hyperparameters
 resume_from_checkpoint: false  # Options: null | true | or specify a path like "outputs/checkpoint-500"
 output_dir: Llama-3.1-8B-text-to-sql-adapter
-num_train_epochs: 3
+num_train_epochs: 5
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 8
-learning_rate: 2e-4
+learning_rate: 5e-5
 max_seq_length: 2048
 max_grad_norm: 1.0
 warmup_ratio: 0.03
 logging_steps: 10
-lora_alpha: 16
-lora_dropout: 0.05
-lora_r: 8
+lora_alpha: 32
+lora_dropout: 0.1
+lora_r: 16

@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.utils import get_original_cwd
+from transformers import StoppingCriteria, StoppingCriteriaList
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -39,9 +40,146 @@ from src.utils import (
 # Utility
 # ----------------------------------------
 
+class SQLStoppingCriteria(StoppingCriteria):
+    """Custom stopping criteria to prevent hallucinations after SQL generation."""
+
+    def __init__(self, tokenizer, check_window: int = 20):
+        """
+        Initialize stopping criteria.
+
+        Args:
+            tokenizer: The tokenizer to use for decoding
+            check_window: Number of tokens to check for hallucination markers
+        """
+        self.tokenizer = tokenizer
+        self.check_window = check_window
+        # Common words/phrases that indicate the model is hallucinating after SQL
+        self.stop_phrases = [
+            "Marilyn", "assistant", "Note:", "The ", "What ", "Which ",
+            "I am", "You are", "Here", "This"
+        ]
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        """
+        Check if generation should stop.
+
+        Args:
+            input_ids: Generated token IDs
+            scores: Token scores
+
+        Returns:
+            True if generation should stop, False otherwise
+        """
+        # Decode the latest generated text
+        decoded = self.tokenizer.decode(input_ids[0][-self.check_window:], skip_special_tokens=True)
+
+        # Stop if we detect hallucination indicators
+        for phrase in self.stop_phrases:
+            if phrase in decoded:
+                return True
+
+        # Stop if we see non-ASCII characters (Tibetan unicode, etc.)
+        if any(ord(char) > 127 for char in decoded):
+            return True
+
+        return False
+
+
 def normalize_sql(sql: str) -> str:
     """Normalize SQL for fair comparison."""
     return re.sub(r'\s+', ' ', sql.strip().rstrip(';').lower())
+
+
+def relaxed_normalize_sql(sql: str) -> str:
+    """
+    More aggressive normalization for relaxed string matching.
+
+    Note: Does NOT normalize table/column names or ignore trailing
+    whitespace/semicolons as per user request.
+    """
+    # Convert to lowercase
+    normalized = sql.lower()
+
+    # Remove quotes around values (both single and double)
+    normalized = re.sub(r'["\']([^"\']+)["\']', r'\1', normalized)
+
+    # Normalize multiple whitespaces to single space
+    normalized = re.sub(r'\s+', ' ', normalized)
+
+    # Strip leading/trailing whitespace
+    normalized = normalized.strip()
+
+    return normalized
+
+
+def is_valid_sql(sql: str) -> bool:
+    """
+    Check if a string is syntactically valid-looking SQL.
+
+    Returns:
+        True if the string contains SQL keywords, False otherwise
+    """
+    sql_upper = sql.upper()
+    sql_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'WITH', 'FROM', 'WHERE']
+    return any(keyword in sql_upper for keyword in sql_keywords)
+
+
+def extract_sql_structure(sql: str) -> dict:
+    """
+    Extract structural components from SQL for partial credit evaluation.
+
+    Returns:
+        Dictionary with: tables, columns, keywords, has_where, has_join
+    """
+    sql_upper = sql.upper()
+
+    structure = {
+        'keywords': [],
+        'has_select': 'SELECT' in sql_upper,
+        'has_from': 'FROM' in sql_upper,
+        'has_where': 'WHERE' in sql_upper,
+        'has_join': any(j in sql_upper for j in ['JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN']),
+        'has_group_by': 'GROUP BY' in sql_upper,
+        'has_order_by': 'ORDER BY' in sql_upper,
+    }
+
+    # Extract main SQL keywords
+    main_keywords = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'WITH']
+    for keyword in main_keywords:
+        if keyword in sql_upper:
+            structure['keywords'].append(keyword)
+
+    return structure
+
+
+def calculate_structural_similarity(pred: str, truth: str) -> float:
+    """
+    Calculate structural similarity between predicted and ground truth SQL.
+
+    Returns:
+        Similarity score between 0.0 and 1.0
+    """
+    pred_struct = extract_sql_structure(pred)
+    truth_struct = extract_sql_structure(truth)
+
+    score = 0.0
+    total_checks = 6
+
+    # Check structural components
+    if pred_struct['has_select'] == truth_struct['has_select']:
+        score += 1
+    if pred_struct['has_from'] == truth_struct['has_from']:
+        score += 1
+    if pred_struct['has_where'] == truth_struct['has_where']:
+        score += 1
+    if pred_struct['has_join'] == truth_struct['has_join']:
+        score += 1
+    if pred_struct['has_group_by'] == truth_struct['has_group_by']:
+        score += 1
+    if pred_struct['has_order_by'] == truth_struct['has_order_by']:
+        score += 1
+
+    return score / total_checks
 
 
 # ----------------------------------------
@@ -136,6 +274,9 @@ class ModelEvaluator:
         self.model.eval()
         inputs = self.tokenizer(prompts, return_tensors="pt", padding=True).to(self.device)
 
+        # Create stopping criteria to prevent hallucinations
+        stopping_criteria = StoppingCriteriaList([SQLStoppingCriteria(self.tokenizer)])
+
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -144,7 +285,11 @@ class ModelEvaluator:
                 temperature=self.temperature if self.temperature > 0.0 else None,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
-                repetition_penalty=1.1,  # Prevent repetitive hallucinations
+                repetition_penalty=1.2,  # Increased from 1.1 to 1.2
+                no_repeat_ngram_size=3,  # Prevent repetitive phrases
+                early_stopping=True,     # Stop when EOS is generated
+                num_beams=1,             # Ensure greedy decoding
+                stopping_criteria=stopping_criteria,  # Custom stopping criteria
             )
 
         decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -187,9 +332,18 @@ class ModelEvaluator:
             batch_sql = self.generate_sql_batch(batch_prompts)
             predictions.extend(batch_sql)
 
-        # Compute accuracy with normalized comparison
+        # Compute accuracy with normalized comparison (strict)
         matches = [(normalize_sql(p) == normalize_sql(t)) for p, t in zip(predictions, ground_truths)]
         correct = sum(matches)
+
+        # Compute relaxed accuracy
+        relaxed_matches = [(relaxed_normalize_sql(p) == relaxed_normalize_sql(t)) for p, t in zip(predictions, ground_truths)]
+        relaxed_correct = sum(relaxed_matches)
+
+        # Compute partial credit metrics
+        valid_sql_count = sum(1 for p in predictions if is_valid_sql(p))
+        structural_similarities = [calculate_structural_similarity(p, t) for p, t in zip(predictions, ground_truths)]
+        avg_structural_similarity = sum(structural_similarities) / len(structural_similarities) if structural_similarities else 0.0
 
         # Collect error examples
         error_examples = []
@@ -198,14 +352,20 @@ class ModelEvaluator:
                 error_examples.append({
                     "question": eval_samples[idx]["messages"][-2]["content"],
                     "predicted": pred,
-                    "ground_truth": truth
+                    "ground_truth": truth,
+                    "structural_similarity": structural_similarities[idx]
                 })
 
         return {
             "accuracy": correct / len(predictions),
+            "relaxed_accuracy": relaxed_correct / len(predictions),
             "num_samples": len(predictions),
             "num_correct": correct,
+            "num_relaxed_correct": relaxed_correct,
             "num_incorrect": len(predictions) - correct,
+            "valid_sql_count": valid_sql_count,
+            "valid_sql_percentage": valid_sql_count / len(predictions),
+            "avg_structural_similarity": avg_structural_similarity,
             "sample_predictions": predictions[:10],
             "sample_ground_truths": ground_truths[:10],
             "error_examples": error_examples,
@@ -378,9 +538,12 @@ def print_comparative_summary(results: Dict[str, Any]):
 
         print(f"{'Metric':<30} {'Baseline':<20} {'Fine-tuned':<20} {'Δ':<10}")
         print(f"{'-'*80}")
-        print(f"{'Accuracy':<30} {baseline['accuracy']*100:>6.2f}% {'':<13} {finetuned['accuracy']*100:>6.2f}% {'':<13} {improvement['absolute_improvement']*100:>+6.2f}%")
+        print(f"{'Accuracy (strict)':<30} {baseline['accuracy']*100:>6.2f}% {'':<13} {finetuned['accuracy']*100:>6.2f}% {'':<13} {improvement['absolute_improvement']*100:>+6.2f}%")
+        print(f"{'Accuracy (relaxed)':<30} {baseline.get('relaxed_accuracy', 0)*100:>6.2f}% {'':<13} {finetuned.get('relaxed_accuracy', 0)*100:>6.2f}% {'':<13} {(finetuned.get('relaxed_accuracy', 0) - baseline.get('relaxed_accuracy', 0))*100:>+6.2f}%")
         print(f"{'Correct predictions':<30} {baseline['num_correct']:>6} / {baseline['num_samples']:<6} {finetuned['num_correct']:>6} / {finetuned['num_samples']:<6} {improvement['correct_gain']:>+6}")
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect']:>6} {'':<13} {finetuned['num_incorrect'] - baseline['num_incorrect']:>+6}")
+        print(f"{'Valid SQL %':<30} {baseline.get('valid_sql_percentage', 0)*100:>6.2f}% {'':<13} {finetuned.get('valid_sql_percentage', 0)*100:>6.2f}% {'':<13} {(finetuned.get('valid_sql_percentage', 0) - baseline.get('valid_sql_percentage', 0))*100:>+6.2f}%")
+        print(f"{'Avg structural similarity':<30} {baseline.get('avg_structural_similarity', 0)*100:>6.2f}% {'':<13} {finetuned.get('avg_structural_similarity', 0)*100:>6.2f}% {'':<13} {(finetuned.get('avg_structural_similarity', 0) - baseline.get('avg_structural_similarity', 0))*100:>+6.2f}%")
         print(f"{'-'*80}")
         print(f"\n💡 Relative Improvement: {improvement['relative_improvement_pct']:+.2f}%")
 
@@ -395,17 +558,23 @@ def print_comparative_summary(results: Dict[str, Any]):
         baseline = results["baseline"]
         print(f"{'Metric':<30} {'Baseline':<20}")
         print(f"{'-'*80}")
-        print(f"{'Accuracy':<30} {baseline['accuracy']*100:>6.2f}%")
+        print(f"{'Accuracy (strict)':<30} {baseline['accuracy']*100:>6.2f}%")
+        print(f"{'Accuracy (relaxed)':<30} {baseline.get('relaxed_accuracy', 0)*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {baseline['num_correct']:>6} / {baseline['num_samples']}")
         print(f"{'Incorrect predictions':<30} {baseline['num_incorrect']:>6}")
+        print(f"{'Valid SQL %':<30} {baseline.get('valid_sql_percentage', 0)*100:>6.2f}%")
+        print(f"{'Avg structural similarity':<30} {baseline.get('avg_structural_similarity', 0)*100:>6.2f}%")
 
     elif "fine_tuned" in results:
         finetuned = results["fine_tuned"]
         print(f"{'Metric':<30} {'Fine-tuned':<20}")
         print(f"{'-'*80}")
-        print(f"{'Accuracy':<30} {finetuned['accuracy']*100:>6.2f}%")
+        print(f"{'Accuracy (strict)':<30} {finetuned['accuracy']*100:>6.2f}%")
+        print(f"{'Accuracy (relaxed)':<30} {finetuned.get('relaxed_accuracy', 0)*100:>6.2f}%")
         print(f"{'Correct predictions':<30} {finetuned['num_correct']:>6} / {finetuned['num_samples']}")
         print(f"{'Incorrect predictions':<30} {finetuned['num_incorrect']:>6}")
+        print(f"{'Valid SQL %':<30} {finetuned.get('valid_sql_percentage', 0)*100:>6.2f}%")
+        print(f"{'Avg structural similarity':<30} {finetuned.get('avg_structural_similarity', 0)*100:>6.2f}%")
 
     print(f"\n{'='*80}")
     print("\nNote: This evaluation uses exact string matching with whitespace normalization.")

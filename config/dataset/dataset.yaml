@@ -2,7 +2,7 @@
 # config/dataset/dataset.yaml
 # ============================================================================
 name: b-mc2/sql-create-context
-train_samples: 10000
+train_samples: 20000
 test_samples: 2500
 train_dataset_path: data/train_dataset.json
 test_dataset_path: data/test_dataset.json

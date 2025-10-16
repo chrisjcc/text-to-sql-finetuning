@@ -2,7 +2,7 @@
 # config/evaluation/evaluation.yaml
 # ============================================================================
 # Model configuration
-model_path: "meta-llama/Llama-3.1-8B" # "meta-llama/Llama-3.1-8B-Instruct"  # Base model path or HuggingFace ID
+model_path: "meta-llama/Llama-3.1-8B-Instruct"  # Base model path or HuggingFace ID
 adapter_path: "chrisjcc/Llama-3.1-8B-text-to-sql-adapter"  # Set to checkpoint path for fine-tuned adapter model
 # Examples:
 #   adapter_path: "${training.output_dir}/checkpoint-500"
