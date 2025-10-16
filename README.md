@@ -607,6 +607,40 @@ ls -la code-llama-3-1-8b-text-to-sql/tokenizer*
 
 If tokenizer files are missing, the model upload will fail or the model will be unusable for inference.
 
+---
+
+# Text-to-SQL Fine-tune Evaluation
+
+## Overview
+
+This document reports the evaluation of a fine-tuned adapter (`chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter`) compared with the base instruct model (`meta-llama/Llama-3.1-8B-Instruct`). It summarizes the dataset and configuration used for evaluation, presents the results, interprets what they mean, and lists concrete next steps you can take to diagnose and improve performance.
+
+
+## Evaluation configuration
+
+- Samples evaluated: **1000**
+- Batch size: **8**
+- Temperature: **0.0** (deterministic decoding)
+- Base model: `meta-llama/Llama-3.1-8B-Instruct`
+- Adapter: `chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter`
+- Metric notes: strict and relaxed accuracy computed against the ground truth SQL in the test set. Structural similarity computed as a percent. SQL validity measured as syntactic/parsing validity.
+
+
+## Results
+
+| Metric                      | Baseline (Instruct) | Fine-tuned adapter | Δ (absolute) |
+|----------------------------:|:-------------------:|:------------------:|:------------:|
+| Accuracy (strict)           | 0.40%               | 1.60%              | +1.20 pp     |
+| Accuracy (relaxed)          | 0.50%               | 1.70%              | +1.20 pp     |
+| Correct predictions         | 4 / 1000            | 16 / 1000          | +12          |
+| Incorrect predictions       | 996                 | 984                | -12          |
+| Valid SQL %                 | 97.50%              | 100.00%            | +2.50 pp     |
+| Avg structural similarity   | 97.42%              | 99.07%             | +1.65 pp     |
+
+Relative improvement reported: **+300%** (mathematically correct because baseline was extremely low). This number is potentially misleading; absolute performance remains very low.
+
+---
+
 ## 📄 License
 
 Apache-2.0 license - see LICENSE file for details
