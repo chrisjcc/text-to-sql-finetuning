@@ -316,7 +316,9 @@ def main(cfg: DictConfig):
     try:
         model, tokenizer = ModelSetup.load_trained_model(
             model_path=model_path,
-            adapter_path=adapter_path
+            adapter_path=adapter_path,
+            setup_chat_format_flag=cfg.hf.setup_chat_format,
+            force_chat_setup=cfg.hf.force_chat_setup,
         )
         if hasattr(model, "merge_and_unload"):
             model = model.merge_and_unload()

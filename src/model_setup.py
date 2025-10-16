@@ -172,6 +172,8 @@ class ModelSetup:
         model_path: str,
         adapter_path: Optional[str] = None,
         device_map: str = "auto",
+        setup_chat_format_flag: bool = True,
+        force_chat_setup: bool = False,
     ) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
         """
         Load a trained PEFT model (adapter + tokenizer) for inference.
@@ -180,6 +182,8 @@ class ModelSetup:
             model_path: Base model path or HuggingFace ID
             adapter_path: Optional path to adapter (local or HuggingFace Hub ID). If None, loads base model only.
             device_map: Device mapping strategy
+            setup_chat_format_flag: Whether to apply chat format setup (default: True)
+            force_chat_setup: If True, force chat setup even if template exists (default: False)
 
         Returns:
             Tuple of (model, tokenizer)
@@ -298,9 +302,19 @@ class ModelSetup:
             has_chat_tokens = any(token in tokenizer.get_vocab() for token in chat_special_tokens)
             vocab_already_extended = tokenizer_vocab_size > model.config.vocab_size
 
-            # Only skip setup_chat_format if we have BOTH chat template AND extended vocab
-            # This ensures we use the tokenizer exactly as it was saved during training
-            if has_chat_template and vocab_already_extended:
+            # Check if we should apply chat format setup based on configuration
+            if not setup_chat_format_flag:
+                # User explicitly disabled chat format setup via configuration
+                logger.info("⊗ Skipping chat format setup (setup_chat_format=false in config)")
+                logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
+                logger.info(f"  Has chat template: {has_chat_template}, Has chat tokens: {has_chat_tokens}")
+
+                # Resize model embeddings to match tokenizer if needed
+                if tokenizer_vocab_size != model.config.vocab_size:
+                    logger.info(f"Resizing model embeddings from {model.config.vocab_size} to {tokenizer_vocab_size}")
+                    model.resize_token_embeddings(tokenizer_vocab_size, mean_resizing=False)
+                    logger.info("✓ Model embeddings resized (preserving adapter's trained embeddings)")
+            elif has_chat_template and vocab_already_extended:
                 # Tokenizer already has chat format configured from training and vocab was extended
                 logger.info("✓ Chat format already configured in tokenizer (skipping setup_chat_format)")
                 logger.info(f"  Tokenizer vocab: {tokenizer_vocab_size}, Model vocab: {model.config.vocab_size}")
@@ -321,6 +335,12 @@ class ModelSetup:
                 logger.info(f"  has_chat_template: {has_chat_template}, vocab_already_extended: {vocab_already_extended}")
                 logger.info(f"  has_chat_tokens: {has_chat_tokens}")
                 logger.warning("This may cause embedding mismatch with the trained adapter!")
+
+                # Handle force_chat_setup flag
+                if force_chat_setup and has_chat_template:
+                    logger.warning("Force chat setup enabled - setting existing chat template to None")
+                    tokenizer.chat_template = None
+
                 model, tokenizer = setup_chat_format(model, tokenizer)
                 new_vocab_size = len(tokenizer)
                 logger.info(f"✓ Chat format applied (new vocab size: {new_vocab_size})")

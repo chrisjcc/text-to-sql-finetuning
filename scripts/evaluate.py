@@ -196,7 +196,9 @@ class ModelEvaluator:
         test_dataset: Dataset,
         batch_size: int = 8,
         temperature: float = 0.0,
-        skip_baseline: bool = False
+        skip_baseline: bool = False,
+        setup_chat_format: bool = True,
+        force_chat_setup: bool = False,
     ):
         """
         Initialize evaluator.
@@ -208,6 +210,8 @@ class ModelEvaluator:
             batch_size: Batch size for generation
             temperature: Sampling temperature for generation (0.0 = greedy)
             skip_baseline: If True, skip baseline evaluation
+            setup_chat_format: Whether to apply chat format setup (default: True)
+            force_chat_setup: If True, force chat setup even if template exists (default: False)
         """
         self.base_model_path = model_name_or_path
         self.adapter_path = adapter_path
@@ -215,6 +219,8 @@ class ModelEvaluator:
         self.batch_size = batch_size
         self.temperature = temperature
         self.skip_baseline = skip_baseline
+        self.setup_chat_format = setup_chat_format
+        self.force_chat_setup = force_chat_setup
         self.model = None
         self.tokenizer = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -238,7 +244,9 @@ class ModelEvaluator:
 
         self.model, self.tokenizer = ModelSetup.load_trained_model(
             model_path=self.base_model_path,
-            adapter_path=adapter_path
+            adapter_path=adapter_path,
+            setup_chat_format_flag=self.setup_chat_format,
+            force_chat_setup=self.force_chat_setup,
         )
 
         # Merge adapter into base model if it's a PEFT model
@@ -623,6 +631,8 @@ def main(cfg: DictConfig):
         batch_size=cfg.evaluation.batch_size,
         temperature=cfg.evaluation.temperature,
         skip_baseline=cfg.evaluation.skip_baseline,
+        setup_chat_format=cfg.hf.setup_chat_format,
+        force_chat_setup=cfg.hf.force_chat_setup,
     )
 
     # Show examples (load adapter if available, otherwise base model)
