@@ -300,7 +300,13 @@ class ModelEvaluator:
                 stopping_criteria=stopping_criteria,  # Custom stopping criteria
             )
 
-        decoded = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        # CRITICAL FIX: Decode only the newly generated tokens, not the full sequence
+        # The outputs tensor includes both the input prompt and generated tokens
+        # We need to slice off the input portion to get only the model's response
+        input_length = inputs['input_ids'].shape[1]
+        generated_tokens = outputs[:, input_length:]
+
+        decoded = self.tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         return [extract_sql(sql) for sql in decoded]
 
     # ----------------------------------------
