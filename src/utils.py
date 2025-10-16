@@ -211,6 +211,8 @@ def extract_sql(generated_text: str) -> str:
       - Multi-line SQL queries
       - Trailing explanations and hallucinated text
       - SQL with or without semicolons
+      - Hallucination markers (Marilyn, assistant responses, etc.)
+      - Non-ASCII characters (Tibetan unicode artifacts, etc.)
 
     Args:
         generated_text: Raw model output
@@ -241,6 +243,28 @@ def extract_sql(generated_text: str) -> str:
     # Remove markdown code blocks, ignore case
     text = re.sub(r'```(?:sql)?', '', text, flags=re.IGNORECASE)
     text = text.strip()
+
+    # NEW: Stop at common hallucination markers
+    hallucination_markers = [
+        r'\bMarilyn\b',
+        r'\bI am\b',
+        r'\bYou are\b',
+        r'\bThe (answer|query|SQL|result)\b',
+        r'\bWhat (is|was|are)\b',
+        r'\bWhich\b',
+        r'\bNote:',
+        r'\bHere',
+    ]
+    for marker in hallucination_markers:
+        match = re.search(marker, text, flags=re.IGNORECASE)
+        if match:
+            text = text[:match.start()].strip()
+            break
+
+    # NEW: Stop at non-ASCII characters (like Tibetan unicode)
+    ascii_match = re.search(r'[^\x00-\x7F]', text)
+    if ascii_match:
+        text = text[:ascii_match.start()].strip()
 
     # Prefer up to first semicolon if present
     if ';' in text:
