@@ -7,26 +7,26 @@
     "adapter_path": "chrisjcc/Llama-3.1-8B-Instruct-text-to-sql-adapter"
   },
   "baseline": {
-    "accuracy": 0.0,
-    "relaxed_accuracy": 0.0,
+    "accuracy": 0.004,
+    "relaxed_accuracy": 0.005,
     "num_samples": 1000,
-    "num_correct": 0,
-    "num_relaxed_correct": 0,
-    "num_incorrect": 1000,
-    "valid_sql_count": 938,
-    "valid_sql_percentage": 0.938,
-    "avg_structural_similarity": 0.6526666666666644,
+    "num_correct": 4,
+    "num_relaxed_correct": 5,
+    "num_incorrect": 996,
+    "valid_sql_count": 975,
+    "valid_sql_percentage": 0.975,
+    "avg_structural_similarity": 0.9741666666666666,
     "sample_predictions": [
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT"
+      "SELECT visitor FROM table_name WHERE record = '4-2'",
+      "SELECT round FROM table_name WHERE team_number2 = 'gomel'",
+      "SELECT city_of_license FROM table_name WHERE call_sign = 'K293BG'",
+      "SELECT COUNT bronz FROM table_name WHERE total > \"2\" AND gold = \"more than 1\"",
+      "SELECT constructor FROM table_name WHERE grid < \"20\" AND laps = \"6\"",
+      "SELECT bronze FROM table_name WHERE total = '4' AND CAST(gold AS REAL) < 1",
+      "SELECT score FROM table_name WHERE player = 'bob tway'",
+      "SELECT first_name, last_NAME FROM employees WHERE department_id = '70' OR department_id='90'",
+      "SELECT service FROM table_name WHERE network = 'zee various'",
+      "SELECT official_name FROM table_name WHERE census_rankING = '1229/5008'"
     ],
     "sample_ground_truths": [
       "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
@@ -43,58 +43,58 @@
     "error_examples": [
       {
         "question": "What visiting team has a record of 4-3?",
-        "predicted": "SELECT",
+        "predicted": "SELECT visitor FROM table_name WHERE record = '4-2'",
         "ground_truth": "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "What round has Team #2 Gomel?",
-        "predicted": "SELECT",
+        "predicted": "SELECT round FROM table_name WHERE team_number2 = 'gomel'",
         "ground_truth": "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "What city of license has a value of k293bg for its call sign?",
-        "predicted": "SELECT",
+        "predicted": "SELECT city_of_license FROM table_name WHERE call_sign = 'K293BG'",
         "ground_truth": "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "How many bronze medals were won when the total was larger than 2 and the more than 2 gold medals were won?",
-        "predicted": "SELECT",
+        "predicted": "SELECT COUNT bronz FROM table_name WHERE total > \"2\" AND gold = \"more than 1\"",
         "ground_truth": "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "I want the constructor for grid less than 20 and Laps of 6",
-        "predicted": "SELECT",
+        "predicted": "SELECT constructor FROM table_name WHERE grid < \"20\" AND laps = \"6\"",
         "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       }
     ],
-    "timestamp": "2025-10-16T16:20:57.584212"
+    "timestamp": "2025-10-16T17:33:11.859165"
   },
   "fine_tuned": {
-    "accuracy": 0.0,
-    "relaxed_accuracy": 0.0,
+    "accuracy": 0.016,
+    "relaxed_accuracy": 0.017,
     "num_samples": 1000,
-    "num_correct": 0,
-    "num_relaxed_correct": 0,
-    "num_incorrect": 1000,
+    "num_correct": 16,
+    "num_relaxed_correct": 17,
+    "num_incorrect": 984,
     "valid_sql_count": 1000,
     "valid_sql_percentage": 1.0,
-    "avg_structural_similarity": 0.6629999999999973,
+    "avg_structural_similarity": 0.9906666666666666,
     "sample_predictions": [
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT",
-      "SELECT"
+      "SELECT visitor FROM table_name49 WHERE record = \"4-2\"",
+      "SELECT round FROM table_name76 WHERE team__numbertwo = \"gomel\"",
+      "SELECT city_of_license FROM table_name__82 WHERE call_sign = \"k293bg\"",
+      "SELECT SUM(bronze) FROM table_name_cloud (total > 2 AND gold = 1)",
+      "SELECT constructor FROM table_name68 WHERE grid < 20 AND laps = \"6\"",
+      "SELECT MAX(bronze) FROM table_name_corporate_credit WHERE total = \"4\" AND gold < 1",
+      "SELECT score FROM table_name__51 WHERE player = \"bob tway\"",
+      "SELECT DISTINCT first_name, last_NAME FROM employees WHERE department_id = 70 OR department_id= 90",
+      "SELECT service FROM table_name__96 WHERE origin_of.programming = \"india\" AND genre = \"general\" AND network = \"zee varieties\"",
+      "SELECT official_name FROM table_name__63 WHERE census_rankING = \"1,299 of 6,017\" OR census_rankINg = \"2,029 of 7,006\""
     ],
     "sample_ground_truths": [
       "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
@@ -111,41 +111,41 @@
     "error_examples": [
       {
         "question": "What visiting team has a record of 4-3?",
-        "predicted": "SELECT",
+        "predicted": "SELECT visitor FROM table_name49 WHERE record = \"4-2\"",
         "ground_truth": "SELECT visitor FROM table_name_49 WHERE record = \"4-3\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "What round has Team #2 Gomel?",
-        "predicted": "SELECT",
+        "predicted": "SELECT round FROM table_name76 WHERE team__numbertwo = \"gomel\"",
         "ground_truth": "SELECT round FROM table_name_76 WHERE team__number2 = \"gomel\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "What city of license has a value of k293bg for its call sign?",
-        "predicted": "SELECT",
+        "predicted": "SELECT city_of_license FROM table_name__82 WHERE call_sign = \"k293bg\"",
         "ground_truth": "SELECT city_of_license FROM table_name_82 WHERE call_sign = \"k293bg\"",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       },
       {
         "question": "How many bronze medals were won when the total was larger than 2 and the more than 2 gold medals were won?",
-        "predicted": "SELECT",
+        "predicted": "SELECT SUM(bronze) FROM table_name_cloud (total > 2 AND gold = 1)",
         "ground_truth": "SELECT SUM(bronze) FROM table_name_70 WHERE total > 2 AND gold > 2",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 0.8333333333333334
       },
       {
         "question": "I want the constructor for grid less than 20 and Laps of 6",
-        "predicted": "SELECT",
+        "predicted": "SELECT constructor FROM table_name68 WHERE grid < 20 AND laps = \"6\"",
         "ground_truth": "SELECT constructor FROM table_name_68 WHERE grid < 20 AND laps = 6",
-        "structural_similarity": 0.6666666666666666
+        "structural_similarity": 1.0
       }
     ],
-    "timestamp": "2025-10-16T16:21:07.659333"
+    "timestamp": "2025-10-16T17:35:09.280812"
   },
   "improvement": {
-    "absolute_improvement": 0.0,
-    "relative_improvement_pct": 0,
-    "correct_gain": 0
+    "absolute_improvement": 0.012,
+    "relative_improvement_pct": 300.0,
+    "correct_gain": 12
   },
   "config": {
     "hf": {
@@ -211,7 +211,7 @@
       "mode": "interactive",
       "max_new_tokens": 512,
       "temperature": 0.0,
-      "question": null,
+      "question": "What visiting team has a record of 4-3?",
       "context": null,
       "batch_file": null,
       "output_file": "inference_outputs.jsonl"
