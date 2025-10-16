@@ -196,7 +196,7 @@ class ModelSetup:
         # Case 1: No adapter - just load base model
         if adapter_path is None:
             logger.info(f"Loading base model (no adapter): {model_path}")
-            
+
             model = AutoModelForCausalLM.from_pretrained(
                 model_path,
                 torch_dtype=torch.bfloat16,
@@ -204,20 +204,37 @@ class ModelSetup:
                 trust_remote_code=True,
             )
             logger.info(f"✓ Base model loaded (vocab size: {model.config.vocab_size})")
-            
+
             tokenizer = AutoTokenizer.from_pretrained(model_path)
             logger.info(f"✓ Tokenizer loaded (vocab size: {len(tokenizer)})")
-            
-            # Apply chat format for base model
-            model, tokenizer = setup_chat_format(model, tokenizer)
-            logger.info("✓ Chat format applied")
-            
+
+            # Handle chat format setup based on configuration
+            if not setup_chat_format_flag:
+                logger.info("⊗ Skipping chat format setup (setup_chat_format=false in config)")
+                logger.info(f"  Tokenizer vocab: {len(tokenizer)}, Model vocab: {model.config.vocab_size}")
+                has_chat_template = tokenizer.chat_template is not None
+                has_chat_tokens = all(token in tokenizer.get_vocab() for token in ["<|im_start|>", "<|im_end|>"])
+                logger.info(f"  Has chat template: {has_chat_template}, Has chat tokens: {has_chat_tokens}")
+            else:
+                # Check if we need to apply chat format
+                has_chat_template = tokenizer.chat_template is not None
+                vocab_already_extended = len(tokenizer) > model.config.vocab_size
+
+                if has_chat_template and vocab_already_extended:
+                    logger.info("⊗ Skipping chat format setup (already configured)")
+                    logger.info(f"  Tokenizer vocab: {len(tokenizer)}, Model vocab: {model.config.vocab_size}")
+                else:
+                    logger.info("⚠️  Applying chat format setup...")
+                    logger.info(f"  has_chat_template: {has_chat_template}, vocab_already_extended: {vocab_already_extended}")
+                    model, tokenizer = setup_chat_format(model, tokenizer)
+                    logger.info("✓ Chat format applied")
+
             # Set padding token
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
                 model.config.pad_token_id = tokenizer.eos_token_id
                 logger.info("✓ Padding token configured")
-            
+
             logger.info("✅ Base model loaded successfully")
             return model, tokenizer
 
