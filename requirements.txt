@@ -26,6 +26,7 @@ wandb==0.18.5
 
 # Evaluation
 evaluate==0.4.2
+sqlparse==0.5.0
 
 # Flash Attention dependencies (optional)
 ninja
