@@ -28,6 +28,7 @@ from src.utils import (
     check_gpu_availability,
     print_trainable_parameters,
     validate_file_exists,
+    get_hp_space_function,
 )
 
 # Load environment variables from .env before Hydra sees them
@@ -109,42 +110,100 @@ def main(cfg: DictConfig):
         report_to=report_to,
     )
 
-    # Start training
-    print("\n" + "="*80)
-    print("Starting training...")
-    print("="*80)
-    print(f"Output directory: {cfg.training.output_dir}")
-    print(f"Number of epochs: {cfg.training.num_train_epochs}")
-    print(f"Training samples: {len(train_dataset)}")
-    print(f"Resume from checkpoint: {cfg.training.resume_from_checkpoint}")
-    print("="*80 + "\n")
+    # Check if hyperparameter optimization is enabled
+    hpo_enabled = cfg.training.get("hpo", {}).get("enabled", False)
 
-    trainer.train(
-        training_args,
-        resume_from_checkpoint=cfg.training.resume_from_checkpoint
-    )
+    if hpo_enabled:
+        # Hyperparameter optimization mode
+        print("\n" + "="*80)
+        print("Starting Hyperparameter Optimization...")
+        print("="*80)
+        hpo_config = cfg.training.hpo
+        print(f"Backend: {hpo_config.backend}")
+        print(f"Method: {hpo_config.method}")
+        print(f"Number of trials: {hpo_config.n_trials}")
+        print(f"Optimizing metric: {hpo_config.metric.name} ({hpo_config.metric.goal})")
+        print(f"Output directory: {cfg.training.output_dir}")
+        print(f"Training samples: {len(train_dataset)}")
+        print("="*80 + "\n")
 
-    # Save model and clean up
-    print("\n" + "="*80)
-    print("Saving model...")
-    print("="*80)
-    trainer.save_model()
+        # Get the appropriate hp_space function
+        hp_space_fn = get_hp_space_function(hpo_config.backend)
 
-    # Cleanup
-    print("\n" + "="*80)
-    print("Cleaning up...")
-    print("="*80)
-    trainer.cleanup()
+        # Create a wrapper that passes the hpo_config to the hp_space function
+        def hp_space_wrapper(trial):
+            return hp_space_fn(trial, dict(hpo_config))
 
-    print("\n" + "="*80)
-    print("Training completed successfully!")
-    print("="*80)
-    print(f"Model saved to: {cfg.training.output_dir}")
-    print("\nNext steps:")
-    print("1. Evaluate the model: python scripts/evaluate.py")
-    print("2. Test inference: python scripts/inference.py --interactive")
-    print("3. Merge and upload: python scripts/upload_to_hf.py")
-    print("="*80)
+        # Create the trainer with training arguments
+        sft_trainer = trainer.create_trainer(training_args)
+
+        # Run hyperparameter search
+        try:
+            best_trial = sft_trainer.hyperparameter_search(
+                hp_space=hp_space_wrapper,
+                backend=hpo_config.backend,
+                n_trials=hpo_config.n_trials,
+                direction="minimize" if hpo_config.metric.goal == "minimize" else "maximize",
+            )
+
+            print("\n" + "="*80)
+            print("Hyperparameter optimization completed!")
+            print("="*80)
+            print(f"Best trial: {best_trial}")
+            print("="*80 + "\n")
+
+        except Exception as e:
+            print(f"\nHyperparameter optimization failed: {e}")
+            raise
+
+    else:
+        # Normal training mode
+        print("\n" + "="*80)
+        print("Starting training...")
+        print("="*80)
+        print(f"Output directory: {cfg.training.output_dir}")
+        print(f"Number of epochs: {cfg.training.num_train_epochs}")
+        print(f"Training samples: {len(train_dataset)}")
+        print(f"Resume from checkpoint: {cfg.training.resume_from_checkpoint}")
+        print("="*80 + "\n")
+
+        trainer.train(
+            training_args,
+            resume_from_checkpoint=cfg.training.resume_from_checkpoint
+        )
+
+    # Save model and clean up (only in normal training mode)
+    if not hpo_enabled:
+        print("\n" + "="*80)
+        print("Saving model...")
+        print("="*80)
+        trainer.save_model()
+
+        # Cleanup
+        print("\n" + "="*80)
+        print("Cleaning up...")
+        print("="*80)
+        trainer.cleanup()
+
+        print("\n" + "="*80)
+        print("Training completed successfully!")
+        print("="*80)
+        print(f"Model saved to: {cfg.training.output_dir}")
+        print("\nNext steps:")
+        print("1. Evaluate the model: python scripts/evaluate.py")
+        print("2. Test inference: python scripts/inference.py --interactive")
+        print("3. Merge and upload: python scripts/upload_to_hf.py")
+        print("="*80)
+    else:
+        print("\n" + "="*80)
+        print("Hyperparameter optimization completed!")
+        print("="*80)
+        print("Best hyperparameters have been identified.")
+        print("To train with the best hyperparameters:")
+        print("1. Check your Weights & Biases dashboard for the best trial")
+        print("2. Update config/training/training.yaml with the best hyperparameters")
+        print("3. Run training with hpo.enabled=false")
+        print("="*80)
 
 if __name__ == "__main__":
     main()

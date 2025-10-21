@@ -170,6 +170,35 @@ Training options (Hydra overrides):
   python -m scripts.train training.resume_from_checkpoint=true training.num_train_epochs=5
   ```
 
+#### Hyperparameter Optimization (HPO)
+
+Enable hyperparameter optimization with Weights & Biases to automatically find the best hyperparameters:
+
+```bash
+# Enable HPO with Bayesian optimization
+python -m scripts.train training.hpo.enabled=true training.hpo.backend=wandb training.hpo.method=bayes
+
+# Customize the number of trials
+python -m scripts.train training.hpo.enabled=true training.hpo.n_trials=20
+```
+
+HPO Configuration (see `config/training/training.yaml`):
+- **Backend**: `wandb` (Weights & Biases) - with Optuna support planned
+- **Method**: `bayes` (Bayesian optimization), `random`, or `grid`
+- **Trials**: Number of hyperparameter combinations to try (default: 10)
+- **Search Space**: Configurable parameters including learning rate, batch size, LoRA settings, etc.
+
+The HPO feature will:
+1. Run multiple training trials with different hyperparameter combinations
+2. Log all trials to your Weights & Biases dashboard
+3. Use Bayesian optimization to intelligently search the hyperparameter space
+4. Report the best hyperparameters found
+
+After HPO completes:
+1. Check your Weights & Biases dashboard for the best trial results
+2. Update `config/training/training.yaml` with the best hyperparameters
+3. Run a final training with `training.hpo.enabled=false`
+
 Training configuration (see `config/training/training.yaml`):
 - Model: Meta-Llama-3.1-8B
 - Quantization: 4-bit with QLoRA

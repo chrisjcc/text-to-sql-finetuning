@@ -285,3 +285,129 @@ def extract_sql(generated_text: str) -> str:
 
     # Return the complete multi-line SQL query
     return text.strip()
+
+
+def wandb_hp_space(trial, hpo_config: dict) -> dict:
+    """
+    Define hyperparameter search space for Weights & Biases sweeps.
+
+    This function is called by Trainer.hyperparameter_search() when using
+    the wandb backend for hyperparameter optimization.
+
+    Args:
+        trial: The trial object (not used for wandb, but required by API)
+        hpo_config: HPO configuration from YAML containing method, metric, and parameters
+
+    Returns:
+        Dictionary defining the wandb sweep configuration
+
+    Example:
+        >>> hpo_config = {
+        ...     "method": "bayes",
+        ...     "metric": {"name": "eval_loss", "goal": "minimize"},
+        ...     "parameters": {
+        ...         "learning_rate": {"distribution": "uniform", "min": 1e-6, "max": 1e-4},
+        ...         "per_device_train_batch_size": {"values": [16, 32, 64, 128]}
+        ...     }
+        ... }
+        >>> wandb_hp_space(None, hpo_config)
+        {
+            "method": "bayes",
+            "metric": {"name": "eval_loss", "goal": "minimize"},
+            "parameters": {
+                "learning_rate": {"distribution": "uniform", "min": 1e-6, "max": 1e-4},
+                "per_device_train_batch_size": {"values": [16, 32, 64, 128]}
+            }
+        }
+    """
+    return {
+        "method": hpo_config.get("method", "bayes"),
+        "metric": hpo_config.get("metric", {"name": "eval_loss", "goal": "minimize"}),
+        "parameters": hpo_config.get("parameters", {}),
+    }
+
+
+def optuna_hp_space(trial, hpo_config: dict) -> dict:
+    """
+    Define hyperparameter search space for Optuna.
+
+    This function is called by Trainer.hyperparameter_search() when using
+    the optuna backend for hyperparameter optimization.
+
+    Args:
+        trial: The Optuna trial object
+        hpo_config: HPO configuration from YAML containing parameters
+
+    Returns:
+        Dictionary with sampled hyperparameters for this trial
+
+    Note:
+        This is a future extension point. To use Optuna:
+        1. Set hpo.backend: optuna in config
+        2. Define parameter distributions in hpo.parameters
+        3. This function will sample from those distributions
+
+    Example:
+        >>> # In training.yaml:
+        >>> # hpo:
+        >>> #   backend: optuna
+        >>> #   parameters:
+        >>> #     learning_rate:
+        >>> #       distribution: log_uniform
+        >>> #       min: 1e-6
+        >>> #       max: 1e-4
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # This is a placeholder for future Optuna support
+    logger.warning("Optuna backend is not yet fully implemented. Using default parameters.")
+
+    # Sample parameters based on configuration
+    sampled_params = {}
+    parameters = hpo_config.get("parameters", {})
+
+    for param_name, param_config in parameters.items():
+        distribution = param_config.get("distribution", "uniform")
+
+        if distribution == "uniform":
+            min_val = param_config.get("min", 0.0)
+            max_val = param_config.get("max", 1.0)
+            sampled_params[param_name] = trial.suggest_float(param_name, min_val, max_val)
+        elif distribution == "log_uniform":
+            min_val = param_config.get("min", 1e-6)
+            max_val = param_config.get("max", 1e-4)
+            sampled_params[param_name] = trial.suggest_float(
+                param_name, min_val, max_val, log=True
+            )
+        elif "values" in param_config:
+            values = param_config["values"]
+            sampled_params[param_name] = trial.suggest_categorical(param_name, values)
+        else:
+            logger.warning(f"Unknown distribution type for parameter {param_name}")
+
+    return sampled_params
+
+
+def get_hp_space_function(backend: str):
+    """
+    Get the appropriate hyperparameter space function for the specified backend.
+
+    Args:
+        backend: HPO backend name ("wandb" or "optuna")
+
+    Returns:
+        The hp_space function for the specified backend
+
+    Raises:
+        ValueError: If backend is not supported
+    """
+    if backend == "wandb":
+        return wandb_hp_space
+    elif backend == "optuna":
+        return optuna_hp_space
+    else:
+        raise ValueError(
+            f"Unsupported HPO backend: {backend}. "
+            f"Supported backends are: 'wandb', 'optuna'"
+        )

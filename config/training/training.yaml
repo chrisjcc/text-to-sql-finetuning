@@ -15,3 +15,31 @@ logging_steps: 10
 lora_alpha: 32
 lora_dropout: 0.1
 lora_r: 16
+
+# Hyperparameter Optimization (HPO) Configuration
+hpo:
+  enabled: false  # Set to true to enable hyperparameter search
+  backend: wandb  # Backend for HPO: "wandb" (Optuna can be added in future)
+  method: bayes   # Search method: "bayes", "random", "grid"
+  n_trials: 10    # Number of trials to run
+  # Metric to optimize (should match the metric name in wandb_hp_space)
+  metric:
+    name: eval_loss  # Metric name to optimize
+    goal: minimize   # "minimize" or "maximize"
+  # Hyperparameter search space for wandb
+  parameters:
+    learning_rate:
+      distribution: uniform
+      min: 1e-6
+      max: 1e-4
+    per_device_train_batch_size:
+      values: [16, 32, 64, 128]
+    # You can add more parameters to search over:
+    # lora_r:
+    #   values: [8, 16, 32]
+    # lora_alpha:
+    #   values: [16, 32, 64]
+    # warmup_ratio:
+    #   distribution: uniform
+    #   min: 0.01
+    #   max: 0.1
