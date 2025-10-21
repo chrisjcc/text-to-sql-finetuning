@@ -14,6 +14,6 @@ dependencies:
   - torchaudio
   - pytorch-cuda=12.4  # optional, if GPU available
   - cudatoolkit        # fallback for CPU/GPU compatibility
-  - nvidia-ml-py==13.580.82
+  - nvidia-ml-py=13.580.82
   - pip:
       - uv>=0.4.0
