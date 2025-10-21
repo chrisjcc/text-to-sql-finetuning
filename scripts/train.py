@@ -109,6 +109,11 @@ def main(cfg: DictConfig):
         report_to=report_to,
     )
 
+    # Can significantly speed up training and reduce computational overhead (TODO: not yet tested)
+    training_args.torch_compile = True
+    training_args.torch_compile_backend = "inductor"
+    training_args.torch_compile_mode = "default"
+
     # Start training
     print("\n" + "="*80)
     print("Starting training...")
