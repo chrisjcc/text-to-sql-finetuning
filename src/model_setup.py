@@ -16,7 +16,7 @@ from transformers import (
     PreTrainedTokenizer,
 )
 from trl import setup_chat_format
-from peft import LoraConfig, PeftConfig, PeftModel
+from peft import LoraConfig, PeftConfig, PeftModel, TaskType
 
 logger = logging.getLogger(__name__)
 
@@ -159,12 +159,13 @@ class ModelSetup:
         """
         logger.info(f"Creating LoRA config: alpha={lora_alpha}, r={lora_r}, dropout={lora_dropout}")
         return LoraConfig(
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            r=lora_r,
+            lora_alpha=lora_alpha,  # scaling factor
+            lora_dropout=lora_dropout,  # dropout of LoRA layers
+            r=lora_r,  # dimension of the smaller matrices
             bias="none",
             target_modules=target_modules,
-            task_type="CAUSAL_LM",
+            task_type=TaskType.CAUSAL_LM,  # type of task to train on
+            inference_mode=False,  # set to False for training
         )
 
     @staticmethod
