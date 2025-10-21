@@ -143,6 +143,7 @@ class ModelTrainer:
             save_strategy="epoch",        # or "steps"
             metric_for_best_model="eval_loss",  # "eval_accuracy"
             greater_is_better=False,    # FTrue
+            evaluation_strategy="epoch",
             learning_rate=learning_rate,
             save_safetensors=True,
             packing=True,
@@ -154,6 +155,7 @@ class ModelTrainer:
             load_best_model_at_end=True,
             push_to_hub=push_to_hub,
             report_to=report_to,
+            logging_strategy="steps",
             # SFT-specific arguments
             dataset_text_field="text",
         )
