@@ -141,8 +141,8 @@ class ModelTrainer:
             logging_steps=logging_steps,
             eval_strategy="epoch",
             save_strategy="epoch",        # or "steps"
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
+            metric_for_best_model="eval_loss",  # "eval_accuracy"
+            greater_is_better=False,    # FTrue
             learning_rate=learning_rate,
             save_safetensors=True,
             packing=True,
