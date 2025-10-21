@@ -139,7 +139,10 @@ class ModelTrainer:
             gradient_checkpointing=True,
             optim="adamw_torch_fused",
             logging_steps=logging_steps,
-            save_strategy="epoch",
+            eval_strategy="epoch",
+            save_strategy="epoch",        # or "steps"
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,
             learning_rate=learning_rate,
             save_safetensors=True,
             packing=True,
@@ -148,6 +151,7 @@ class ModelTrainer:
             max_grad_norm=max_grad_norm,
             warmup_ratio=warmup_ratio,
             lr_scheduler_type="constant",
+            load_best_model_at_end=True,
             push_to_hub=push_to_hub,
             report_to=report_to,
             # SFT-specific arguments
